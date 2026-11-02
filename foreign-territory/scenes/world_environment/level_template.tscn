@@ -1,0 +1,31 @@
+[gd_scene format=3 uid="uid://rxm1yn3vml0t"]
+
+[sub_resource type="Environment" id="Environment_gos3o"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_8ui2r"]
+
+[node name="LevelTemplate" type="Node" unique_id=580886146]
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1079101337]
+
+[node name="Enemy" type="CharacterBody2D" parent="." unique_id=1630102831]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=356781412]
+environment = SubResource("Environment_gos3o")
+camera_attributes = SubResource("CameraAttributesPractical_8ui2r")
+
+[node name="Ground" type="TileMapLayer" parent="." unique_id=1637271307]
+
+[node name="Walls" type="TileMapLayer" parent="." unique_id=1429069681]
+
+[node name="Level_Objects" type="TileMapLayer" parent="." unique_id=887353443]
+
+[node name="Parallax2D" type="Parallax2D" parent="." unique_id=1685364383]
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=55884763]
+
+[node name="DirectionalLight2D" type="DirectionalLight2D" parent="." unique_id=589005344]
+
+[node name="PointLight2D" type="PointLight2D" parent="." unique_id=228061745]
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="." unique_id=1856705463]
