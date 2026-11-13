@@ -1,12 +1,17 @@
-[gd_scene format=3 uid="uid://rxm1yn3vml0t"]
+[gd_scene load_steps=5 format=3 uid="uid://rxm1yn3vml0t"]
+
+[ext_resource type="Script" path="res://scripts/world/level.gd" id="1_level"]
+[ext_resource type="Script" path="res://scripts/actors/player.gd" id="2_player"]
 
 [sub_resource type="Environment" id="Environment_gos3o"]
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_8ui2r"]
 
-[node name="LevelTemplate" type="Node" unique_id=580886146]
+[node name="LevelTemplate" type="Node2D" unique_id=580886146]
+script = ExtResource("1_level")
 
 [node name="Player" type="CharacterBody2D" parent="." unique_id=1079101337]
+script = ExtResource("2_player")
 
 [node name="Enemy" type="CharacterBody2D" parent="." unique_id=1630102831]
 
