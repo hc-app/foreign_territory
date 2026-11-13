@@ -4,12 +4,16 @@ extends Node2D
 @onready var camera: Camera2D = $Camera2D
 
 
-# configures the simple arena and following camera
+# updated so that the camera doesn't desync with player on start
+# initializes the camera at the player's position
 func _ready() -> void:
-	camera.make_current()
+	camera.global_position = player.global_position
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 4.0
+	camera.make_current()
+	camera.reset_smoothing()
 	queue_redraw()
+
 
 
 # keeps the camera centered on the player while fighting

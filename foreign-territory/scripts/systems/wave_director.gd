@@ -64,23 +64,32 @@ func _start_wave() -> void:
 	wave_started.emit(floor_number, wave_number)
 
 
-# instantiates a temporary enemy setup for the AI and world teams to replace
+# rebuilt so it spawns enemies around the player without overlapping their starting position
 func _spawn_enemy() -> void:
 	var index := _enemies_to_spawn
 	var rank := "normal"
+
 	if wave_number == waves_per_floor and index == 1:
 		rank = "boss"
 	elif randf() < 0.12:
 		rank = "elite"
+
 	var kind := "ranged" if randf() < 0.35 else "melee"
-	var enemy := EnemyActor.new()
-	enemy.configure(kind, rank, floor_number, player)
-	world.add_child(enemy)
+
 	var angle := randf_range(0.0, TAU)
 	var distance := randf_range(260.0, 410.0)
-	enemy.global_position = (player.global_position + Vector2.RIGHT.rotated(angle) * distance).clamp(
-		Vector2(-590.0, -305.0), Vector2(590.0, 305.0)
+	var spawn_position := (
+		player.global_position + Vector2.RIGHT.rotated(angle) * distance
+	).clamp(
+		Vector2(-590.0, -305.0),
+		Vector2(590.0, 305.0)
 	)
+
+	var enemy := EnemyActor.new()
+	enemy.configure(kind, rank, floor_number, player)
+	enemy.position = world.to_local(spawn_position)
+	world.add_child(enemy)
+
 	enemy.defeated.connect(_on_enemy_defeated)
 	_alive_enemies += 1
 
