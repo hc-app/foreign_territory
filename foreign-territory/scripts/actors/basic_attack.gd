@@ -1,0 +1,51 @@
+extends Node
+class_name BasicAttack
+
+signal attack_fired(target_position: Vector2)
+
+var player: PlayerController
+var _attack_timer: float = 0.0
+
+
+# fires at the nearest enemy whenever the automatic attack is ready
+func _physics_process(delta: float) -> void:
+	if player == null or not player.is_alive():
+		return
+	_attack_timer -= delta
+	if _attack_timer > 0.0:
+		return
+	var target := find_nearest_enemy()
+	if target == null:
+		_attack_timer = 0.1
+		return
+	fire_at(target.global_position)
+	attack_fired.emit(target.global_position)
+	_attack_timer = player.attack_interval
+
+
+# finds the closest living enemy in the current scene
+func find_nearest_enemy() -> EnemyActor:
+	var nearest: EnemyActor
+	var best_distance := INF
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyActor
+		if enemy == null or not enemy.is_alive():
+			continue
+		var distance := player.global_position.distance_squared_to(enemy.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			nearest = enemy
+	return nearest
+
+
+# spawns a plasma ball toward the given position with an optional angle offset
+func fire_at(target_position: Vector2, angle_offset: float = 0.0) -> void:
+	var aim := (target_position - player.global_position).normalized()
+	if aim == Vector2.ZERO:
+		aim = Vector2.RIGHT
+	var projectile := CombatProjectile.new()
+	projectile.source = player
+	projectile.direction = aim.rotated(angle_offset)
+	projectile.damage = player.attack_damage
+	player.get_parent().add_child(projectile)
+	projectile.global_position = player.global_position + projectile.direction * 22.0
