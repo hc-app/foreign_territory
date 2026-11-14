@@ -42,7 +42,7 @@ func add_experience(amount: int) -> void:
 func get_reward_options(kind: String) -> Array[Dictionary]:
 	var options: Array[Dictionary] = []
 	if kind == "relic":
-		var available := GameCatalog.pick_options(GameCatalog.RELICS, 2, taken_relics)
+		var available := GameCatalog.pick_relic_options(2, taken_relics, player.luck)
 		var upgradable: Array[String] = []
 		for relic_id in taken_relics:
 			if player.relic_controller.get_level(relic_id) < GameCatalog.MAX_RELIC_LEVEL:
@@ -71,17 +71,14 @@ func get_reward_options(kind: String) -> Array[Dictionary]:
 	return options
 
 
-# creates a new relic or relic-level option with its own rarity roll
+# creates a new relic or relic-level option using the relic's fixed rarity
 func _make_relic_option(relic_id: String, level_up: bool) -> Dictionary:
 	var option := GameCatalog.find_entry(GameCatalog.RELICS, relic_id).duplicate()
-	var rarity := GameCatalog.roll_rarity(player.luck)
 	var next_level := 1
 	option["option_type"] = "relic_level" if level_up else "relic_new"
 	if level_up:
 		next_level = player.relic_controller.get_level(relic_id) + 1
-		var boost := 0.3 * GameCatalog.rarity_scale(rarity, "relic") * 100.0
-		option["description"] = "Strengthen owned relic by %.0f%% of its base power" % boost
-	option["rarity"] = rarity
+		option["description"] = "Increase this relic's level and strengthen its effects"
 	option["level"] = next_level
 	option["name"] = "%s (Lv. %d)" % [option["name"], next_level]
 	return option
@@ -94,21 +91,22 @@ func _format_value(value: float, stat: String) -> String:
 	return "%.1f" % value
 
 
-# applies the rarity rolled on the chosen option, including relic level-ups
+# applies rarity-scaled stats or increases the level of a fixed-rarity relic
 func apply_reward(kind: String, entry: Dictionary) -> bool:
 	var entry_id := str(entry.get("id", ""))
 	var rarity := str(entry.get("rarity", "common"))
 	if GameCatalog.find_entry(GameCatalog.RARITIES, rarity).is_empty():
 		return false
 	if kind == "relic" and str(entry.get("option_type", "")) != "upgrade":
-		if GameCatalog.find_entry(GameCatalog.RELICS, entry_id).is_empty():
+		var relic := GameCatalog.find_entry(GameCatalog.RELICS, entry_id)
+		if relic.is_empty() or rarity != str(relic["rarity"]):
 			return false
 		var is_level_up := str(entry.get("option_type", "")) == "relic_level"
 		if is_level_up != taken_relics.has(entry_id):
 			return false
 		if is_level_up and player.relic_controller.get_level(entry_id) >= GameCatalog.MAX_RELIC_LEVEL:
 			return false
-		if not player.relic_controller.add_relic(entry_id, rarity):
+		if not player.relic_controller.add_relic(entry_id):
 			return false
 		if not is_level_up:
 			taken_relics.append(entry_id)

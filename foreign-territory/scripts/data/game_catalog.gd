@@ -16,18 +16,22 @@ const UPGRADES = [
 ]
 
 const RELICS = [
-	{"id": "meteor", "name": "Orbital Meteor", "description": "Call down an area attack periodically"},
-	{"id": "extra_shot", "name": "Twin Plasma", "description": "Fire additional plasma projectiles"},
-	{"id": "aura", "name": "Radiation Field", "description": "Damage nearby enemies periodically"},
-	{"id": "dash_shield", "name": "Reactive Barrier", "description": "Gain temporary shield when dashing"},
-	{"id": "extra_dash", "name": "Reserve Thruster", "description": "Increase the number of dash charges"},
+	{"id": "meteor", "name": "Orbital Meteor", "rarity": "rare", "description": "Call down an area attack periodically"},
+	{"id": "extra_shot", "name": "Twin Plasma", "rarity": "common", "description": "Fire at additional nearby enemies"},
+	{"id": "aura", "name": "Radiation Field", "rarity": "uncommon", "description": "Damage nearby enemies periodically"},
+	{"id": "dash_shield", "name": "Reactive Barrier", "rarity": "uncommon", "description": "Gain temporary shield when dashing"},
+	{"id": "extra_dash", "name": "Reserve Thruster", "rarity": "rare", "description": "Increase the number of dash charges"},
+	{"id": "piercing_shot", "name": "Railgun", "rarity": "legendary", "description": "Pierce enemies, prioritize high-health targets, and gain +50% crit chance"},
+	{"id": "burn", "name": "Incendiary Core", "rarity": "uncommon", "description": "Apply burning damage over time with attacks"},
+	{"id": "porcupine", "name": "Porcupine", "rarity": "rare", "description": "Release spikes after taking a hit, with a 5-second cooldown"},
+	{"id": "metallokinesis", "name": "Metallokinesis", "rarity": "legendary", "description": "Orbit scrap metal that damages nearby enemies"},
 ]
 
 const RARITIES = [
-	{"id": "common", "name": "Common", "weight": 60.0, "upgrade_scale": 1.0, "relic_scale": 1.0},
-	{"id": "uncommon", "name": "Uncommon", "weight": 26.0, "upgrade_scale": 1.5, "relic_scale": 1.3},
-	{"id": "rare", "name": "Rare", "weight": 11.0, "upgrade_scale": 2.0, "relic_scale": 1.7},
-	{"id": "legendary", "name": "Legendary", "weight": 3.0, "upgrade_scale": 3.0, "relic_scale": 2.4},
+	{"id": "common", "name": "Common", "weight": 60.0, "upgrade_scale": 1.0},
+	{"id": "uncommon", "name": "Uncommon", "weight": 26.0, "upgrade_scale": 1.5},
+	{"id": "rare", "name": "Rare", "weight": 11.0, "upgrade_scale": 2.0},
+	{"id": "legendary", "name": "Legendary", "weight": 3.0, "upgrade_scale": 3.0},
 ]
 
 # future fusion recipes can specify two relic ids and a resulting effect
@@ -63,6 +67,36 @@ static func pick_options(entries: Array, count: int, excluded: Array[String] = [
 	return chosen
 
 
+# picks distinct relics using their fixed rarity and the player's luck
+static func pick_relic_options(count: int, excluded: Array[String], luck: float) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	for entry in RELICS:
+		if not excluded.has(str(entry["id"])):
+			pool.append(entry)
+	var chosen: Array[Dictionary] = []
+	while not pool.is_empty() and chosen.size() < count:
+		var total := 0.0
+		var weights: Array[float] = []
+		for entry in pool:
+			var rank := 0
+			for index in range(RARITIES.size()):
+				if RARITIES[index]["id"] == entry["rarity"]:
+					rank = index
+					break
+			var weight := float(RARITIES[rank]["weight"]) * (1.0 + maxf(0.0, luck) * 0.12 * float(rank))
+			weights.append(weight)
+			total += weight
+		var roll := randf() * total
+		var selected := pool.size() - 1
+		for index in range(pool.size()):
+			roll -= weights[index]
+			if roll <= 0.0:
+				selected = index
+				break
+		chosen.append(pool.pop_at(selected))
+	return chosen
+
+
 # increases drop chances with luck while keeping the result below certainty
 static func chance_with_luck(base_chance: float, luck: float) -> float:
 	var attempts := 1.0 + maxf(0.0, luck) * 0.12
@@ -87,12 +121,12 @@ static func roll_rarity(luck: float) -> String:
 	return "legendary"
 
 
-# returns the stat or relic multiplier assigned to a rarity
-static func rarity_scale(rarity_id: String, kind: String = "upgrade") -> float:
+# returns the stat upgrade multiplier assigned to a rarity
+static func rarity_scale(rarity_id: String) -> float:
 	var entry := find_entry(RARITIES, rarity_id)
 	if entry.is_empty():
 		return 1.0
-	return float(entry["relic_scale"] if kind == "relic" else entry["upgrade_scale"])
+	return float(entry["upgrade_scale"])
 
 
 # returns a readable color for each rarity in menus and pickups
