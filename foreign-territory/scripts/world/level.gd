@@ -9,7 +9,6 @@ extends Node2D
 @onready var camera: Camera2D = get_node_or_null("Camera2D") as Camera2D
 
 
-# updated so that the camera doesn't desync with player on start
 # initializes the camera at the player's position
 func _ready() -> void:
 	if camera != null and player != null:
