@@ -5,6 +5,7 @@ var player: PlayerController
 var relic_ids: Array[String] = []
 var relic_levels: Dictionary = {}
 var relic_rarities: Dictionary = {}
+var relic_level_bonuses: Dictionary = {}
 var _meteor_timer: float = 5.0
 var _aura_timer: float = 0.6
 
@@ -34,10 +35,12 @@ func add_relic(relic_id: String, rarity: String = "common") -> bool:
 		if get_level(relic_id) >= GameCatalog.MAX_RELIC_LEVEL:
 			return false
 		relic_levels[relic_id] = get_level(relic_id) + 1
+		relic_level_bonuses[relic_id] = float(relic_level_bonuses.get(relic_id, 0.0)) + 0.3 * GameCatalog.rarity_scale(rarity, "relic")
 	else:
 		relic_ids.append(relic_id)
 		relic_levels[relic_id] = 1
 		relic_rarities[relic_id] = rarity
+		relic_level_bonuses[relic_id] = 0.0
 	if relic_id == "extra_dash":
 		var added_charges := _extra_dash_bonus() - previous_bonus
 		player.max_dash_charges += added_charges
@@ -57,21 +60,18 @@ func get_rarity(relic_id: String) -> String:
 	return str(relic_rarities.get(relic_id, "common"))
 
 
-# scales an owned relic's effect by its rarity and level
+# scales an owned relic's effect by its initial rarity and level-up rarities
 func get_power(relic_id: String) -> float:
 	if not relic_ids.has(relic_id):
 		return 0.0
-	return GameCatalog.rarity_scale(get_rarity(relic_id), "relic") * (1.0 + 0.3 * float(get_level(relic_id) - 1))
+	return GameCatalog.rarity_scale(get_rarity(relic_id), "relic") * (1.0 + float(relic_level_bonuses.get(relic_id, 0.0)))
 
 
 # calculates additional dash charges granted by the reserve thruster
 func _extra_dash_bonus() -> int:
 	if not relic_ids.has("extra_dash"):
 		return 0
-	var extra := 1 + (get_level("extra_dash") - 1) / 2
-	if get_rarity("extra_dash") in ["rare", "legendary"]:
-		extra += 1
-	return int(extra)
+	return mini(5, 1 + int(floor(maxf(0.0, get_power("extra_dash") - 1.0))))
 
 
 # adds extra plasma shots whenever the basic attack fires
@@ -97,7 +97,8 @@ func _spawn_meteor() -> void:
 	if target == null:
 		return
 	var meteor := MeteorStrike.new()
-	meteor.damage = player.roll_attack_damage(player.attack_damage * (1.6 * get_power("meteor")) + 4.0)
+	meteor.player = player
+	meteor.damage = player.attack_damage * (1.6 * get_power("meteor")) + 4.0
 	meteor.radius = 78.0 + 10.0 * float(get_level("meteor") - 1)
 	player.get_parent().add_child(meteor)
 	meteor.global_position = target.global_position
@@ -109,4 +110,5 @@ func _tick_aura() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as EnemyActor
 		if enemy != null and enemy.is_alive() and player.global_position.distance_to(enemy.global_position) <= radius:
-			enemy.take_damage(player.roll_attack_damage(player.attack_damage * 0.45 * get_power("aura")))
+			var hit := player.roll_attack_hit(player.attack_damage * 0.45 * get_power("aura"))
+			enemy.take_damage(float(hit["damage"]), bool(hit["critical"]))

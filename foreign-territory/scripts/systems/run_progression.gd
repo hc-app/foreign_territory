@@ -38,8 +38,8 @@ func add_experience(amount: int) -> void:
 	experience_changed.emit()
 
 
-# generates rarity-scaled stat choices or a mix of new and existing relics
-func get_reward_options(kind: String, rarity: String = "common") -> Array[Dictionary]:
+# rolls reward choices first, then rolls a separate rarity for every option
+func get_reward_options(kind: String) -> Array[Dictionary]:
 	var options: Array[Dictionary] = []
 	if kind == "relic":
 		var available := GameCatalog.pick_options(GameCatalog.RELICS, 2, taken_relics)
@@ -50,35 +50,38 @@ func get_reward_options(kind: String, rarity: String = "common") -> Array[Dictio
 		upgradable.shuffle()
 		var include_level := not upgradable.is_empty() and (available.is_empty() or randf() < RELIC_LEVEL_UP_CHANCE)
 		if include_level:
-			options.append(_make_relic_option(upgradable[0], true, rarity))
+			options.append(_make_relic_option(upgradable[0], true))
 		for entry in available:
 			if options.size() >= 2:
 				break
-			options.append(_make_relic_option(str(entry["id"]), false, rarity))
+			options.append(_make_relic_option(str(entry["id"]), false))
 		if options.is_empty() and not upgradable.is_empty():
-			options.append(_make_relic_option(upgradable[0], true, rarity))
+			options.append(_make_relic_option(upgradable[0], true))
 		if not options.is_empty():
 			return options
 
 	for entry in GameCatalog.pick_options(GameCatalog.UPGRADES, 3):
 		var option: Dictionary = entry.duplicate()
+		var rarity := GameCatalog.roll_rarity(player.luck)
 		option["rarity"] = rarity
 		option["option_type"] = "upgrade"
 		option["value"] = float(entry["value"]) * GameCatalog.rarity_scale(rarity)
-		option["description"] = "+%s %s" % [_format_value(option["value"], str(entry["stat"])), entry["description"]]
+		option["description"] = "+%s %s" % [_format_value(float(option["value"]), str(entry["stat"])), entry["description"]]
 		options.append(option)
 	return options
 
 
-# creates a choice to acquire a relic or increase its existing level
-func _make_relic_option(relic_id: String, level_up: bool, rarity: String) -> Dictionary:
+# creates a new relic or relic-level option with its own rarity roll
+func _make_relic_option(relic_id: String, level_up: bool) -> Dictionary:
 	var option := GameCatalog.find_entry(GameCatalog.RELICS, relic_id).duplicate()
+	var rarity := GameCatalog.roll_rarity(player.luck)
 	var next_level := 1
+	option["option_type"] = "relic_level" if level_up else "relic_new"
 	if level_up:
 		next_level = player.relic_controller.get_level(relic_id) + 1
-		rarity = player.relic_controller.get_rarity(relic_id)
+		var boost := 0.3 * GameCatalog.rarity_scale(rarity, "relic") * 100.0
+		option["description"] = "Strengthen owned relic by %.0f%% of its base power" % boost
 	option["rarity"] = rarity
-	option["option_type"] = "relic_level" if level_up else "relic_new"
 	option["level"] = next_level
 	option["name"] = "%s (Lv. %d)" % [option["name"], next_level]
 	return option
@@ -91,7 +94,7 @@ func _format_value(value: float, stat: String) -> String:
 	return "%.1f" % value
 
 
-# applies a rarity-scaled upgrade or advances a relic's level
+# applies the rarity rolled on the chosen option, including relic level-ups
 func apply_reward(kind: String, entry: Dictionary) -> bool:
 	var entry_id := str(entry.get("id", ""))
 	var rarity := str(entry.get("rarity", "common"))

@@ -8,7 +8,7 @@ const UPGRADES = [
 	{"id": "damage", "name": "Plasma Amplifier", "description": "attack damage", "stat": "damage", "value": 2.0},
 	{"id": "speed", "name": "Thrusters", "description": "movement speed", "stat": "move_speed", "value": 25.0},
 	{"id": "health", "name": "Reinforced Hull", "description": "maximum health and healing", "stat": "max_health", "value": 2.0},
-	{"id": "attack_speed", "name": "Rapid Capacitor", "description": "faster automatic attacks", "stat": "attack_speed", "value": 0.10},
+	{"id": "attack_speed", "name": "Rapid Capacitor", "description": "faster automatic attacks", "stat": "attack_speed", "value": 0.1},
 	{"id": "shield", "name": "Shield Battery", "description": "regenerating shield capacity", "stat": "shield", "value": 2.0},
 	{"id": "crit_chance", "name": "Targeting Matrix", "description": "critical hit chance", "stat": "crit_chance", "value": 0.05},
 	{"id": "crit_damage", "name": "Overcharged Core", "description": "bonus critical hit damage", "stat": "crit_damage", "value": 0.15},
@@ -54,7 +54,7 @@ static func find_entry(entries: Array, entry_id: String) -> Dictionary:
 static func pick_options(entries: Array, count: int, excluded: Array[String] = []) -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
 	for entry in entries:
-		if not excluded.has(entry["id"]):
+		if not excluded.has(str(entry["id"])):
 			pool.append(entry)
 	pool.shuffle()
 	var chosen: Array[Dictionary] = []
@@ -69,7 +69,7 @@ static func chance_with_luck(base_chance: float, luck: float) -> float:
 	return clampf(1.0 - pow(1.0 - clampf(base_chance, 0.0, 1.0), attempts), 0.0, 1.0)
 
 
-# rolls a rarity using weights that favor higher rarities with more luck
+# rolls rarity independently for each selected reward option
 static func roll_rarity(luck: float) -> String:
 	var weights: Array[float] = []
 	var total := 0.0
