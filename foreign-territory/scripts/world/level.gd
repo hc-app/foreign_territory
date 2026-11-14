@@ -5,6 +5,8 @@ signal exit_requested(exit_door: RoomExit)
 @export var room_bounds: Rect2 = Rect2(-610.0, -325.0, 1220.0, 650.0)
 @export var player_spawn: Vector2 = Vector2.ZERO
 @export var enemy_spawn_points: Array[NodePath] = []
+@export_range(0.0, 1.0, 0.01) var edge_spawn_chance: float = 0.9
+@export var minimum_enemy_spawn_distance: float = 240.0
 @export var exit_paths: Array[NodePath] = []
 @export var show_placeholder_arena: bool = true
 
@@ -62,27 +64,50 @@ func get_entry_position(from_direction: String) -> Vector2:
 	return Vector2(room_bounds.position.x + 46.0, middle.y)
 
 
-# chooses a spawn point from the room layout or its fallback bounds
+# chooses distant room markers or mostly edge spawns with a safe minimum distance
 func get_enemy_spawn_position(player_position: Vector2) -> Vector2:
 	var choices: Array[Vector2] = []
 	for path in enemy_spawn_points:
 		var marker := get_node_or_null(path) as Node2D
-		if marker != null and marker.global_position.distance_to(player_position) >= 150.0:
+		if marker != null and marker.global_position.distance_to(player_position) >= minimum_enemy_spawn_distance:
 			choices.append(marker.global_position)
 	if not choices.is_empty():
 		return choices.pick_random()
 
 	var local_player := to_local(player_position)
-	var margin := Vector2(18.0, 18.0)
+	var margin := Vector2(28.0, 28.0)
 	var lower := room_bounds.position + margin
 	var upper := room_bounds.end - margin
-	for _attempt in range(12):
-		var angle := randf_range(0.0, TAU)
-		var distance := randf_range(250.0, 410.0)
-		var point := (local_player + Vector2.RIGHT.rotated(angle) * distance).clamp(lower, upper)
-		if point.distance_to(local_player) >= 150.0:
+	var best_point := lower
+	var best_distance := -1.0
+	for _attempt in range(36):
+		var edge_point := _random_edge_spawn(lower, upper)
+		var point := edge_point
+		if randf() > edge_spawn_chance:
+			point = local_player.lerp(edge_point, 0.5)
+		var distance := point.distance_to(local_player)
+		if distance >= minimum_enemy_spawn_distance:
 			return to_global(point)
-	return to_global(Vector2(lower.x, lower.y))
+		if distance > best_distance:
+			best_distance = distance
+			best_point = point
+	for corner in [lower, Vector2(upper.x, lower.y), upper, Vector2(lower.x, upper.y)]:
+		if corner.distance_to(local_player) > best_distance:
+			best_distance = corner.distance_to(local_player)
+			best_point = corner
+	return to_global(best_point)
+
+
+# selects a random point along one of the room's four inner edges
+func _random_edge_spawn(lower: Vector2, upper: Vector2) -> Vector2:
+	match randi_range(0, 3):
+		0:
+			return Vector2(randf_range(lower.x, upper.x), lower.y)
+		1:
+			return Vector2(randf_range(lower.x, upper.x), upper.y)
+		2:
+			return Vector2(lower.x, randf_range(lower.y, upper.y))
+	return Vector2(upper.x, randf_range(lower.y, upper.y))
 
 
 # connects level designer doors or creates one temporary right-side exit

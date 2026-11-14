@@ -14,6 +14,7 @@ signal run_won
 @export var enemies_added_per_room: int = 3
 @export var maximum_enemies_per_room: int = 120
 @export var spawn_interval: float = 0.55
+@export_range(1.0, 4.0, 0.1) var spawn_pacing_multiplier: float = 1.5
 @export_range(1, 32) var maximum_spawn_batch: int = 8
 @export var elite_chance: float = 0.1
 @export var armored_enemy_chance: float = 0.25
@@ -96,9 +97,9 @@ func get_spawn_batch_size() -> int:
 	return mini(maximum_spawn_batch, 1 + int(floor(float(_difficulty_stage) / 2.0)))
 
 
-# decreases the time between spawn batches as rooms get harder
+# slows the existing spawn pacing while retaining depth-based acceleration
 func get_spawn_delay() -> float:
-	return maxf(0.14, spawn_interval * pow(0.90, float(_difficulty_stage)))
+	return maxf(0.14, spawn_interval * pow(0.90, float(_difficulty_stage))) * spawn_pacing_multiplier
 
 
 # prepares one wave per room or a recurring wave in endless mode
@@ -113,7 +114,7 @@ func _start_room() -> void:
 	_enemies_to_spawn = mini(maximum_enemies_per_room, count)
 	if wave_room == rooms_per_floor:
 		_enemies_to_spawn += 1
-	_spawn_timer = 0.4
+	_spawn_timer = 0.4 * spawn_pacing_multiplier
 	_alive_enemies = 0
 	room_started.emit(floor_number, room_number)
 
