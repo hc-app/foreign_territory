@@ -6,6 +6,7 @@ signal defeated(enemy: EnemyActor, xp_reward: int, tier: String)
 var tier: String = "normal"
 var enemy_kind: String = "melee"
 var floor_number: int = 1
+var room_number: int = 1
 var move_speed: float = 100.0
 var contact_damage: float = 1.0
 var xp_reward: int = 5
@@ -23,11 +24,12 @@ var _pull_strength: float = 0.0
 var _pull_time: float = 0.0
 
 
-# configures the enemy type and difficulty before it enters the scene
-func configure(kind: String, rank: String, floor_index: int, target: PlayerController) -> void:
+# configures the enemy type and room difficulty before it enters the scene
+func configure(kind: String, rank: String, floor_index: int, target: PlayerController, room_index: int = 1) -> void:
 	enemy_kind = kind
 	tier = rank
 	floor_number = floor_index
+	room_number = room_index
 	player = target
 
 
@@ -41,19 +43,24 @@ func _ready() -> void:
 	circle.radius = 14.0 if tier == "normal" else (20.0 if tier == "elite" else 32.0)
 	collision.shape = circle
 	add_child(collision)
-	var depth := float(maxi(0, floor_number - 1))
-	var health_scale := pow(1.3, depth)
-	var speed_scale := minf(1.8, 1.0 + depth * 0.08)
-	var damage_scale := 1.0 + depth * 0.22
+	var floor_depth := float(maxi(0, floor_number - 1))
+	var room_depth := float(maxi(0, room_number - 1))
+	var health_scale := pow(2.4, floor_depth) * pow(1.45, room_depth)
+	var speed_scale := minf(3.0, pow(1.40, floor_depth) * pow(1.16, room_depth))
+	var damage_scale := pow(1.45, floor_depth) * pow(1.15, room_depth)
 	var start_health := 10.0 * health_scale
 	contact_damage = 1.0 * damage_scale
 	if tier == "elite":
-		start_health *= 3.0
+		start_health *= 6.0
+		contact_damage *= 1.4
 	elif tier == "boss":
-		start_health *= 9.0
+		start_health *= 18.0
+		contact_damage *= 1.75
 	move_speed = (110.0 if enemy_kind == "melee" else 85.0) * speed_scale
-	if tier == "boss":
-		move_speed = 70.0 * speed_scale
+	if tier == "elite":
+		move_speed *= 1.15
+	elif tier == "boss":
+		move_speed = 92.0 * speed_scale
 	xp_reward = 5 + floor_number * 2
 	if tier == "elite":
 		xp_reward *= 4
@@ -70,6 +77,9 @@ func _ready() -> void:
 		var armor_amount := start_health * (0.8 if tier == "normal" else 0.5)
 		armor_component.setup(armor_amount)
 	armor_component.changed.connect(queue_redraw)
+	if enemy_kind == "ranged" or tier == "boss":
+		var initial_delay := 0.9 if tier == "normal" else 0.35
+		_attack_timer = maxf(0.15, initial_delay * pow(0.6, floor_depth))
 
 
 # uses simple placeholder AI until the enemy programmer replaces it
@@ -92,10 +102,11 @@ func _physics_process(delta: float) -> void:
 		if enemy_kind == "ranged" or tier == "boss":
 			if distance <= 370.0:
 				_fire_projectile(to_player.normalized())
-				_attack_timer = 1.7 if tier == "normal" else 1.1
+				var base_cooldown := 1.7 if tier == "normal" else (0.9 if tier == "elite" else 0.7)
+				_attack_timer = maxf(0.35, base_cooldown * pow(0.82, float(floor_number - 1)))
 		elif distance <= 35.0:
 			player.take_damage(contact_damage)
-			_attack_timer = 0.9
+			_attack_timer = maxf(0.5, 0.9 * pow(0.93, float(floor_number - 1)))
 	queue_redraw()
 
 
