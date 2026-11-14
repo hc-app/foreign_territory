@@ -8,10 +8,15 @@ const BASE_HEALTH = 8.0
 const BASE_DAMAGE = 3.0
 const BASE_SPEED = 230.0
 const BASE_ATTACK_INTERVAL = 0.5
+const BASE_CRIT_CHANCE = 0.05
+const BASE_CRIT_DAMAGE = 0.5
 
 var attack_damage: float = BASE_DAMAGE
 var move_speed: float = BASE_SPEED
 var attack_interval: float = BASE_ATTACK_INTERVAL
+var crit_chance: float = BASE_CRIT_CHANCE
+var crit_damage: float = BASE_CRIT_DAMAGE
+var luck: float = 0.0
 var dash_speed: float = 680.0
 var dash_duration: float = 0.18
 var dash_cooldown: float = 2.0
@@ -81,8 +86,9 @@ func _physics_process(delta: float) -> void:
 # draws the placeholder alien and the damage aura if equipped
 func _draw() -> void:
 	if relic_controller != null and relic_controller.relic_ids.has("aura"):
-		draw_circle(Vector2.ZERO, 88.0, Color(0.35, 0.95, 0.4, 0.08))
-		draw_arc(Vector2.ZERO, 88.0, 0.0, TAU, 48, Color(0.5, 1.0, 0.6, 0.38), 2.0)
+		var radius := 88.0 + 10.0 * float(relic_controller.get_level("aura") - 1)
+		draw_circle(Vector2.ZERO, radius, Color(0.35, 0.95, 0.4, 0.08))
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(0.5, 1.0, 0.6, 0.38), 2.0)
 	var color := Color(0.52, 0.98, 0.67)
 	if _invulnerable_time > 0.0:
 		color = Color(0.67, 0.85, 1.0)
@@ -97,8 +103,9 @@ func _try_dash() -> void:
 		return
 	var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	_dash_direction = input_direction if input_direction != Vector2.ZERO else _dash_direction
+	var was_full := dash_charges == max_dash_charges
 	dash_charges -= 1
-	if dash_charges == max_dash_charges - 1:
+	if was_full:
 		_dash_recharge_time = dash_cooldown
 	_dash_time_left = dash_duration
 	_invulnerable_time = dash_duration + 0.08
@@ -128,7 +135,27 @@ func apply_stat_upgrade(stat: String, value: float) -> void:
 			attack_interval = maxf(0.15, attack_interval * (1.0 - value))
 		"shield":
 			health_component.add_shield_capacity(value)
+		"crit_chance":
+			crit_chance = clampf(crit_chance + value, 0.0, 1.0)
+		"crit_damage":
+			crit_damage += value
+		"luck":
+			luck += value
 	status_changed.emit()
+
+
+# rolls critical damage for a player attack or relic hit
+func roll_attack_damage(base_damage: float) -> float:
+	if randf() < crit_chance:
+		return base_damage * (1.0 + crit_damage)
+	return base_damage
+
+
+# returns progress toward the next recharged dash charge
+func get_dash_recharge_ratio() -> float:
+	if dash_charges >= max_dash_charges:
+		return 1.0
+	return clampf(1.0 - _dash_recharge_time / dash_cooldown, 0.0, 1.0)
 
 
 # applies meta-upgrade levels once at the beginning of a run
