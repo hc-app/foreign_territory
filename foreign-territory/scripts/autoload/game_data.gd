@@ -72,3 +72,11 @@ func purchase_upgrade(upgrade_id: String) -> bool:
 	save_data()
 	changed.emit()
 	return true
+
+
+# clears saved meta currency and permanent upgrades after menu confirmation
+func reset_progress() -> void:
+	currency = 0
+	purchased.clear()
+	save_data()
+	changed.emit()
