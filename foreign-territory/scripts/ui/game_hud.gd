@@ -9,8 +9,10 @@ var player: PlayerController
 var progression: RunProgression
 var director: WaveDirector
 var _status: Label
+var _combat_stats: Label
 var _wave_status: Label
 var _message: Label
+var _dash_bar: ProgressBar
 var _overlay: Control
 var _message_time: float = 0.0
 
@@ -34,9 +36,17 @@ func _ready() -> void:
 	_status = Label.new()
 	_status.add_theme_font_size_override("font_size", 19)
 	left.add_child(_status)
+	_combat_stats = Label.new()
+	_combat_stats.add_theme_font_size_override("font_size", 17)
+	left.add_child(_combat_stats)
 	_wave_status = Label.new()
 	_wave_status.add_theme_font_size_override("font_size", 18)
 	left.add_child(_wave_status)
+	_dash_bar = ProgressBar.new()
+	_dash_bar.custom_minimum_size = Vector2(245.0, 18.0)
+	_dash_bar.max_value = 100.0
+	_dash_bar.show_percentage = false
+	left.add_child(_dash_bar)
 	_message = Label.new()
 	_message.add_theme_font_size_override("font_size", 18)
 	_message.modulate = Color(1.0, 0.92, 0.62)
@@ -53,16 +63,18 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if player != null and progression != null and director != null and is_instance_valid(player):
 		var health := player.health_component
-		_status.text = "HP %.1f/%.1f  Shield %.1f  Damage %.1f  Dashes %d/%d" % [
-			health.health, health.max_health, health.total_shield(), player.attack_damage,
-			player.dash_charges, player.max_dash_charges
+		_status.text = "HP %.1f/%.1f  Shield %.1f  Damage %.1f" % [
+			health.health, health.max_health, health.total_shield(), player.attack_damage
 		]
-		_wave_status.text = "Floor %d/%d  Wave %d/%d  Level %d  XP %d/%d  Relics %d/%d  Meta %d" % [
-			director.floor_number, director.total_floors, director.wave_number,
-			director.waves_per_floor, progression.level, progression.experience,
+		_combat_stats.text = "Crit %.1f%% (+%.0f%% damage)  Luck %.1f" % [
+			player.crit_chance * 100.0, player.crit_damage * 100.0, player.luck
+		]
+		_wave_status.text = "Room %d/%d  Level %d  XP %d/%d  Relics %d  Dashes %d/%d  Meta %d" % [
+			director.room_number, director.total_rooms, progression.level, progression.experience,
 			progression.experience_required(), progression.taken_relics.size(),
-			progression.relic_slots, GameData.currency
+			player.dash_charges, player.max_dash_charges, GameData.currency
 		]
+		_dash_bar.value = player.get_dash_recharge_ratio() * 100.0
 	if _message_time > 0.0:
 		_message_time -= delta
 		if _message_time <= 0.0:
@@ -89,7 +101,11 @@ func show_reward(kind: String, options: Array[Dictionary]) -> void:
 	_add_overlay_label(layout, "CHOOSE A %s" % kind.to_upper(), 25)
 	for entry in options:
 		var button := Button.new()
-		button.text = "%s\n%s" % [entry["name"], entry["description"]]
+		var rarity := str(entry.get("rarity", "common"))
+		var rarity_entry := GameCatalog.find_entry(GameCatalog.RARITIES, rarity)
+		var rarity_name := str(rarity_entry.get("name", "Common"))
+		button.text = "%s — %s\n%s" % [rarity_name, entry["name"], entry["description"]]
+		button.add_theme_color_override("font_color", GameCatalog.rarity_color(rarity))
 		button.custom_minimum_size.y = 64
 		button.pressed.connect(_select_reward.bind(entry))
 		layout.add_child(button)
