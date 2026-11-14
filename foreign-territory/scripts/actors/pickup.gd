@@ -25,6 +25,19 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+# collects pickups at the extended radius of the scrap collector relic
+func _physics_process(_delta: float) -> void:
+	if is_queued_for_deletion():
+		return
+	for node in get_tree().get_nodes_in_group("player"):
+		var target := node as PlayerController
+		if target == null or not target.is_alive():
+			continue
+		if target.global_position.distance_to(global_position) <= target.relic_controller.get_pickup_radius():
+			_on_body_entered(target)
+			break
+
+
 # draws different colors and symbols for rewards and ship repair parts
 func _draw() -> void:
 	var color := Color(0.3, 0.85, 1.0)
@@ -39,6 +52,6 @@ func _draw() -> void:
 
 # sends the collected reward to the main gameplay controller
 func _on_body_entered(body: Node2D) -> void:
-	if body.is_in_group("player"):
+	if body.is_in_group("player") and not is_queued_for_deletion():
 		collected.emit(pickup_kind)
 		queue_free()

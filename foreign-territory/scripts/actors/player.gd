@@ -17,6 +17,8 @@ var attack_interval: float = BASE_ATTACK_INTERVAL
 var crit_chance: float = BASE_CRIT_CHANCE
 var crit_damage: float = BASE_CRIT_DAMAGE
 var luck: float = 0.0
+var area_radius: float = 1.0
+var status_potency: float = 1.0
 var dash_speed: float = 680.0
 var dash_duration: float = 0.18
 var dash_cooldown: float = 2.0
@@ -86,7 +88,7 @@ func _physics_process(delta: float) -> void:
 # draws the placeholder alien and the damage aura if equipped
 func _draw() -> void:
 	if relic_controller != null and relic_controller.relic_ids.has("aura"):
-		var radius := 88.0 + 10.0 * float(relic_controller.get_level("aura") - 1)
+		var radius := (88.0 + 10.0 * float(relic_controller.get_level("aura") - 1)) * area_radius
 		draw_circle(Vector2.ZERO, radius, Color(0.35, 0.95, 0.4, 0.08))
 		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(0.5, 1.0, 0.6, 0.38), 2.0)
 	var color := Color(0.52, 0.98, 0.67)
@@ -137,11 +139,22 @@ func apply_stat_upgrade(stat: String, value: float) -> void:
 		"shield":
 			health_component.add_shield_capacity(value)
 		"crit_chance":
-			crit_chance = clampf(crit_chance + value, 0.0, 1.0)
+			var total_chance := crit_chance + maxf(0.0, value)
+			crit_damage += maxf(0.0, total_chance - 1.0) * 1.5
+			crit_chance = minf(1.0, total_chance)
 		"crit_damage":
 			crit_damage += value
 		"luck":
 			luck += value
+		"dash_recharge":
+			var old_cooldown := dash_cooldown
+			dash_cooldown = maxf(0.35, dash_cooldown * (1.0 - value))
+			if dash_charges < max_dash_charges:
+				_dash_recharge_time *= dash_cooldown / old_cooldown
+		"area_radius":
+			area_radius += maxf(0.0, value)
+		"status_potency":
+			status_potency += maxf(0.0, value)
 	status_changed.emit()
 
 

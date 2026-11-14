@@ -13,6 +13,9 @@ const UPGRADES = [
 	{"id": "crit_chance", "name": "Targeting Matrix", "description": "critical hit chance", "stat": "crit_chance", "value": 0.05},
 	{"id": "crit_damage", "name": "Overcharged Core", "description": "bonus critical hit damage", "stat": "crit_damage", "value": 0.15},
 	{"id": "luck", "name": "Lucky Circuit", "description": "luck for drops and rarity", "stat": "luck", "value": 1.0},
+	{"id": "dash_recharge", "name": "Quick Capacitor", "description": "faster dash recharge", "stat": "dash_recharge", "value": 0.1},
+	{"id": "area_radius", "name": "Field Expander", "description": "area effect radius", "stat": "area_radius", "value": 0.12},
+	{"id": "status_potency", "name": "Reactive Chemistry", "description": "status effect potency", "stat": "status_potency", "value": 0.15},
 ]
 
 const RELICS = [
@@ -25,6 +28,11 @@ const RELICS = [
 	{"id": "burn", "name": "Incendiary Core", "rarity": "uncommon", "description": "Apply burning damage over time with attacks"},
 	{"id": "porcupine", "name": "Porcupine", "rarity": "rare", "description": "Release spikes after taking a hit, with a 5-second cooldown"},
 	{"id": "metallokinesis", "name": "Metallokinesis", "rarity": "legendary", "description": "Orbit scrap metal that damages nearby enemies"},
+	{"id": "chain_lightning", "name": "Chain Lightning", "rarity": "rare", "description": "Hits can chain lightning to nearby enemies"},
+	{"id": "armor_breaker", "name": "Armor Breaker", "rarity": "uncommon", "description": "Attacks damage enemy armor much faster"},
+	{"id": "gravity_well", "name": "Gravity Well", "rarity": "rare", "description": "Periodically pull enemies into a localized field"},
+	{"id": "emergency_repairs", "name": "Emergency Repairs", "rarity": "uncommon", "description": "Recover health after clearing a combat room"},
+	{"id": "scrap_collector", "name": "Scrap Collector", "rarity": "common", "description": "Collect nearby pickups from farther away"},
 ]
 
 const RARITIES = [

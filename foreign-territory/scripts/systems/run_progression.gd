@@ -60,13 +60,24 @@ func get_reward_options(kind: String) -> Array[Dictionary]:
 		if not options.is_empty():
 			return options
 
-	for entry in GameCatalog.pick_options(GameCatalog.UPGRADES, 3):
+	var excluded: Array[String] = []
+	if player.crit_chance >= 1.0 - 0.00001:
+		excluded.append("crit_chance")
+	for entry in GameCatalog.pick_options(GameCatalog.UPGRADES, 3, excluded):
 		var option: Dictionary = entry.duplicate()
 		var rarity := GameCatalog.roll_rarity(player.luck)
 		option["rarity"] = rarity
 		option["option_type"] = "upgrade"
 		option["value"] = float(entry["value"]) * GameCatalog.rarity_scale(rarity)
 		option["description"] = "+%s %s" % [_format_value(float(option["value"]), str(entry["stat"])), entry["description"]]
+		if entry["stat"] == "crit_chance":
+			var offered := float(option["value"])
+			var available := maxf(0.0, 1.0 - player.crit_chance)
+			var converted := maxf(0.0, offered - available) * 1.5
+			if converted > 0.0:
+				option["description"] = "+%.1f%% crit chance, +%.1f%% crit damage" % [
+					minf(offered, available) * 100.0, converted * 100.0
+				]
 		options.append(option)
 	return options
 
@@ -86,7 +97,7 @@ func _make_relic_option(relic_id: String, level_up: bool) -> Dictionary:
 
 # formats percentages and numerical amounts for upgrade descriptions
 func _format_value(value: float, stat: String) -> String:
-	if stat in ["attack_speed", "crit_chance", "crit_damage"]:
+	if stat in ["attack_speed", "crit_chance", "crit_damage", "dash_recharge", "area_radius", "status_potency"]:
 		return "%.1f%%" % (value * 100.0)
 	return "%.1f" % value
 
