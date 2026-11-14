@@ -208,7 +208,7 @@ func _tick_aura() -> void:
 			enemy.take_damage(float(hit["damage"]), bool(hit["critical"]), player)
 
 
-# fires a piercing railgun shot at the enemy with the highest maximum health
+# fires a lingering railgun beam through the highest-health target and beyond
 func _fire_piercing_shot() -> void:
 	var target: EnemyActor
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -218,20 +218,19 @@ func _fire_piercing_shot() -> void:
 				target = enemy
 	if target == null:
 		return
-	var direction := (target.global_position - player.global_position).normalized()
+	var to_target := target.global_position - player.global_position
+	var direction := to_target.normalized()
 	if direction == Vector2.ZERO:
 		direction = Vector2.RIGHT
-	var railgun := CombatProjectile.new()
-	railgun.source = player
-	railgun.direction = direction
-	railgun.speed = 650.0
-	railgun.max_hits = 2 + int(floor(float(get_level("piercing_shot")) / 2.0))
+	var beam := RailgunBeam.new()
+	beam.z_index = 12
+	beam.direction = direction
+	beam.beam_length = maxf(900.0, to_target.length() + 450.0)
+	player.get_parent().add_child(beam)
+	beam.global_position = player.global_position
 	var hit := player.roll_attack_hit(player.attack_damage * 1.6 * get_power("piercing_shot"), 0.5)
-	railgun.damage = float(hit["damage"])
-	railgun.critical_hit = bool(hit["critical"])
-	player.get_parent().add_child(railgun)
-	railgun.global_position = player.global_position + direction * 22.0
-
+	var maximum_hits := 2 + int(floor(float(get_level("piercing_shot")) / 2.0))
+	beam.fire(player, float(hit["damage"]), bool(hit["critical"]), maximum_hits, target)
 
 # returns the number of orbiting metal pieces at the current relic level
 func _metal_count() -> int:
