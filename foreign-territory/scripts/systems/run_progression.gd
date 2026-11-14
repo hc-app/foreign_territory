@@ -4,10 +4,11 @@ class_name RunProgression
 signal experience_changed
 signal reward_applied(message: String)
 
+const RELIC_LEVEL_UP_CHANCE = 0.4
+
 var player: PlayerController
 var level: int = 1
 var experience: int = 0
-var relic_slots: int = 3
 var taken_relics: Array[String] = []
 var upgrade_levels: Dictionary = {}
 
@@ -37,28 +38,82 @@ func add_experience(amount: int) -> void:
 	experience_changed.emit()
 
 
-# creates three stat options or two new relic options for a pickup
-# will add more/different options later
-func get_reward_options(kind: String) -> Array[Dictionary]:
-	if kind == "relic" and taken_relics.size() < relic_slots:
-		return GameCatalog.pick_options(GameCatalog.RELICS, 2, taken_relics)
-	return GameCatalog.pick_options(GameCatalog.UPGRADES, 3)
-
-
-# applies a chosen reward while enforcing relic slots and uniqueness
-# works better than I thought, but is a simple solution for now
-func apply_reward(kind: String, entry: Dictionary) -> bool:
+# generates rarity-scaled stat choices or a mix of new and existing relics
+func get_reward_options(kind: String, rarity: String = "common") -> Array[Dictionary]:
+	var options: Array[Dictionary] = []
 	if kind == "relic":
-		if taken_relics.size() >= relic_slots or taken_relics.has(entry["id"]):
+		var available := GameCatalog.pick_options(GameCatalog.RELICS, 2, taken_relics)
+		var upgradable: Array[String] = []
+		for relic_id in taken_relics:
+			if player.relic_controller.get_level(relic_id) < GameCatalog.MAX_RELIC_LEVEL:
+				upgradable.append(relic_id)
+		upgradable.shuffle()
+		var include_level := not upgradable.is_empty() and (available.is_empty() or randf() < RELIC_LEVEL_UP_CHANCE)
+		if include_level:
+			options.append(_make_relic_option(upgradable[0], true, rarity))
+		for entry in available:
+			if options.size() >= 2:
+				break
+			options.append(_make_relic_option(str(entry["id"]), false, rarity))
+		if options.is_empty() and not upgradable.is_empty():
+			options.append(_make_relic_option(upgradable[0], true, rarity))
+		if not options.is_empty():
+			return options
+
+	for entry in GameCatalog.pick_options(GameCatalog.UPGRADES, 3):
+		var option: Dictionary = entry.duplicate()
+		option["rarity"] = rarity
+		option["option_type"] = "upgrade"
+		option["value"] = float(entry["value"]) * GameCatalog.rarity_scale(rarity)
+		option["description"] = "+%s %s" % [_format_value(option["value"], str(entry["stat"])), entry["description"]]
+		options.append(option)
+	return options
+
+
+# creates a choice to acquire a relic or increase its existing level
+func _make_relic_option(relic_id: String, level_up: bool, rarity: String) -> Dictionary:
+	var option := GameCatalog.find_entry(GameCatalog.RELICS, relic_id).duplicate()
+	var next_level := 1
+	if level_up:
+		next_level = player.relic_controller.get_level(relic_id) + 1
+		rarity = player.relic_controller.get_rarity(relic_id)
+	option["rarity"] = rarity
+	option["option_type"] = "relic_level" if level_up else "relic_new"
+	option["level"] = next_level
+	option["name"] = "%s (Lv. %d)" % [option["name"], next_level]
+	return option
+
+
+# formats percentages and numerical amounts for upgrade descriptions
+func _format_value(value: float, stat: String) -> String:
+	if stat in ["attack_speed", "crit_chance", "crit_damage"]:
+		return "%.1f%%" % (value * 100.0)
+	return "%.1f" % value
+
+
+# applies a rarity-scaled upgrade or advances a relic's level
+func apply_reward(kind: String, entry: Dictionary) -> bool:
+	var entry_id := str(entry.get("id", ""))
+	var rarity := str(entry.get("rarity", "common"))
+	if GameCatalog.find_entry(GameCatalog.RARITIES, rarity).is_empty():
+		return false
+	if kind == "relic" and str(entry.get("option_type", "")) != "upgrade":
+		if GameCatalog.find_entry(GameCatalog.RELICS, entry_id).is_empty():
 			return false
-		if GameCatalog.find_entry(GameCatalog.RELICS, entry["id"]).is_empty():
+		var is_level_up := str(entry.get("option_type", "")) == "relic_level"
+		if is_level_up != taken_relics.has(entry_id):
 			return false
-		taken_relics.append(entry["id"])
-		player.relic_controller.add_relic(entry["id"])
+		if is_level_up and player.relic_controller.get_level(entry_id) >= GameCatalog.MAX_RELIC_LEVEL:
+			return false
+		if not player.relic_controller.add_relic(entry_id, rarity):
+			return false
+		if not is_level_up:
+			taken_relics.append(entry_id)
 	else:
-		if GameCatalog.find_entry(GameCatalog.UPGRADES, entry["id"]).is_empty():
+		var base := GameCatalog.find_entry(GameCatalog.UPGRADES, entry_id)
+		if base.is_empty():
 			return false
-		player.apply_stat_upgrade(entry["stat"], float(entry["value"]))
-		upgrade_levels[entry["id"]] = int(upgrade_levels.get(entry["id"], 0)) + 1
-	reward_applied.emit("Obtained: " + entry["name"])
+		player.apply_stat_upgrade(str(base["stat"]), float(base["value"]) * GameCatalog.rarity_scale(rarity))
+		upgrade_levels[entry_id] = int(upgrade_levels.get(entry_id, 0)) + 1
+	reward_applied.emit("Obtained: " + str(entry.get("name", entry_id)))
 	return true
