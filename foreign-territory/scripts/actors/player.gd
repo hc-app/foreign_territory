@@ -39,7 +39,7 @@ var _invulnerable_time: float = 0.0
 func _ready() -> void:
 	add_to_group("player")
 	collision_layer = 1
-	collision_mask = 2
+	collision_mask = 4
 	var collision := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = 14.0

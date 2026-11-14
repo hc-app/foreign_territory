@@ -37,7 +37,7 @@ func configure(kind: String, rank: String, floor_index: int, target: PlayerContr
 func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = 2
-	collision_mask = 1
+	collision_mask = 4
 	var collision := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
 	circle.radius = 14.0 if tier == "normal" else (20.0 if tier == "elite" else 32.0)
@@ -46,7 +46,7 @@ func _ready() -> void:
 	var floor_depth := float(maxi(0, floor_number - 1))
 	var room_depth := float(maxi(0, room_number - 1))
 	var health_scale := pow(2.4, floor_depth) * pow(1.45, room_depth)
-	var speed_scale := minf(3.0, pow(1.40, floor_depth) * pow(1.16, room_depth))
+	var speed_scale := minf(1.65, pow(1.10, floor_depth) * pow(1.05, room_depth))
 	var damage_scale := pow(1.45, floor_depth) * pow(1.15, room_depth)
 	var start_health := 10.0 * health_scale
 	contact_damage = 1.0 * damage_scale
@@ -82,7 +82,7 @@ func _ready() -> void:
 		_attack_timer = maxf(0.15, initial_delay * pow(0.6, floor_depth))
 
 
-# uses simple placeholder AI until the enemy programmer replaces it
+# approaches the player with reduced speed nearby until enemy AI is replaced
 func _physics_process(delta: float) -> void:
 	_crit_flash_time = maxf(0.0, _crit_flash_time - delta)
 	_tick_burn(delta)
@@ -93,7 +93,10 @@ func _physics_process(delta: float) -> void:
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
 	var desired_range := 215.0 if enemy_kind == "ranged" or tier == "boss" else 20.0
-	velocity = to_player.normalized() * move_speed if distance > desired_range else Vector2.ZERO
+	var approach_speed := move_speed
+	if enemy_kind == "melee" and tier != "boss":
+		approach_speed *= clampf((distance - desired_range) / 85.0, 0.0, 1.0)
+	velocity = to_player.normalized() * approach_speed if distance > desired_range else Vector2.ZERO
 	if _pull_time > 0.0:
 		velocity += (_pull_target - global_position).normalized() * _pull_strength
 	move_and_slide()
