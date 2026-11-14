@@ -47,6 +47,7 @@ func _setup_input() -> void:
 		"move_down": [KEY_S, KEY_DOWN],
 		"dash": [KEY_SPACE],
 		"interact": [KEY_E],
+		"pause": [KEY_ESCAPE],
 	}
 	for action in controls:
 		if not InputMap.has_action(action):
@@ -98,6 +99,7 @@ func _start_run(endless_mode: bool = false) -> void:
 	add_child(hud)
 	hud.setup(player, progression, director)
 	hud.reward_chosen.connect(_on_reward_chosen)
+	hud.pause_requested.connect(_on_pause_requested)
 	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_show_menu)
 	progression.reward_applied.connect(hud.show_message)
@@ -109,6 +111,18 @@ func _start_run(endless_mode: bool = false) -> void:
 	director.start_run()
 	if not endless_mode:
 		world.call("set_exits_locked", false)
+
+
+# toggles the pause menu without interrupting reward or end screens
+func _on_pause_requested() -> void:
+	if _run_ended or _reward_active or _transitioning or hud == null:
+		return
+	if hud.pause_menu_open:
+		get_tree().paused = false
+		hud.hide_overlay()
+	else:
+		hud.show_pause_menu()
+		get_tree().paused = true
 
 
 # restarts the selected mode without returning to the main menu

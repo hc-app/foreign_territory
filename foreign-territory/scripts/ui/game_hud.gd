@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name GameHUD
 
 signal reward_chosen(entry: Dictionary)
+signal pause_requested
 signal restart_requested
 signal menu_requested
 
@@ -17,6 +18,7 @@ var _resource_stats: Label
 var _message: Label
 var _help: Label
 var _overlay: Control
+var pause_menu_open: bool = false
 var _message_time: float = 0.0
 
 
@@ -59,11 +61,18 @@ func _ready() -> void:
 	left.add_child(_message)
 
 	var help := Label.new()
-	help.text = "WASD: move  •  Space: dash  •  E: use green doorway  •  Collect glowing drops"
+	help.text = "WASD / Arrows: move  •  Space: dash  •  E: door  •  Esc: pause"
 	help.position = Vector2(20, 665)
 	help.add_theme_font_size_override("font_size", 16)
 	canvas.add_child(help)
 	_help = help
+
+
+# opens or closes the pause menu only when no other overlay is active
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") and (pause_menu_open or _overlay == null):
+		pause_requested.emit()
+		get_viewport().set_input_as_handled()
 
 
 # updates player and wave values without coupling other scripts to UI nodes
@@ -112,7 +121,7 @@ func setup(target: PlayerController, run_progression: RunProgression, wave_direc
 	director = wave_director
 	run_controller = wave_director.get_parent() as Node2D
 	if _help != null and wave_director.endless_waves:
-		_help.text = "WASD: move  •  Space: dash  •  Survive repeating waves  •  Collect glowing drops"
+		_help.text = "WASD / Arrows: move  •  Space: dash  •  Esc: pause  •  Survive waves"
 
 
 # displays a short message for leveling, drops, and wave changes
@@ -140,6 +149,26 @@ func show_reward(kind: String, options: Array[Dictionary]) -> void:
 		layout.add_child(button)
 
 
+# pauses gameplay and presents resume, options, and menu controls
+func show_pause_menu() -> void:
+	_create_overlay()
+	pause_menu_open = true
+	var layout := _make_overlay_panel()
+	_add_overlay_label(layout, "PAUSED", 28)
+	var resume := Button.new()
+	resume.text = "Resume"
+	resume.pressed.connect(func() -> void: pause_requested.emit())
+	layout.add_child(resume)
+	var options := Button.new()
+	options.text = "Options (Coming Soon)"
+	options.disabled = true
+	layout.add_child(options)
+	var menu := Button.new()
+	menu.text = "Return to Main Menu"
+	menu.pressed.connect(func() -> void: menu_requested.emit())
+	layout.add_child(menu)
+
+
 # shows win or loss controls when the current run ends
 func show_run_end(won: bool) -> void:
 	_create_overlay()
@@ -156,11 +185,12 @@ func show_run_end(won: bool) -> void:
 	layout.add_child(menu)
 
 
-# clears the active selection or end-of-run overlay
+# clears the active reward, pause, or end-of-run overlay
 func hide_overlay() -> void:
 	if _overlay != null and is_instance_valid(_overlay):
 		_overlay.queue_free()
 	_overlay = null
+	pause_menu_open = false
 
 
 # adds a darkened background that blocks gameplay clicks
