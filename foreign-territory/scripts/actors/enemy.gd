@@ -10,6 +10,11 @@ var move_speed: float = 100.0
 var contact_damage: float = 1.0
 var xp_reward: int = 5
 var health_component: HealthComponent
+var armor_component: ArmorComponent
+var starts_armored: bool = false
+var _burn_remaining: float = 0.0
+var _burn_dps: float = 0.0
+var _burn_tick_timer: float = 0.5
 var player: PlayerController
 var _attack_timer: float = 1.0
 var _crit_flash_time: float = 0.0
@@ -51,11 +56,18 @@ func _ready() -> void:
 	health_component.setup(start_health)
 	health_component.changed.connect(queue_redraw)
 	health_component.died.connect(_on_died)
+	armor_component = ArmorComponent.new()
+	add_child(armor_component)
+	if starts_armored:
+		var armor_amount := start_health * (0.8 if tier == "normal" else 0.5)
+		armor_component.setup(armor_amount)
+	armor_component.changed.connect(queue_redraw)
 
 
 # uses simple placeholder AI until the enemy programmer replaces it
 func _physics_process(delta: float) -> void:
 	_crit_flash_time = maxf(0.0, _crit_flash_time - delta)
+	_tick_burn(delta)
 	if player == null or not player.is_alive() or not is_alive():
 		velocity = Vector2.ZERO
 		return
@@ -89,9 +101,14 @@ func _draw() -> void:
 		color = Color(0.97, 0.25, 0.57)
 		radius = 32.0
 	draw_circle(Vector2.ZERO, radius, color)
+	if armor_component != null and armor_component.armor > 0.0:
+		draw_arc(Vector2.ZERO, radius + 5.0, 0.0, TAU, 32, Color(0.35, 0.78, 1.0), 4.0)
 	if _crit_flash_time > 0.0:
 		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 32, Color(1.0, 0.83, 0.25), 4.0)
 	draw_circle(Vector2(0.0, -4.0), 4.0, Color(0.22, 0.1, 0.2))
+	if armor_component != null and armor_component.armor > 0.0:
+		var armor_ratio := armor_component.armor / armor_component.max_armor
+		draw_rect(Rect2(-22.0, -radius - 23.0, 44.0 * armor_ratio, 5.0), Color(0.3, 0.8, 1.0))
 	if health_component != null and health_component.health < health_component.max_health:
 		var ratio := health_component.health / health_component.max_health
 		draw_rect(Rect2(-22.0, -radius - 14.0, 44.0, 5.0), Color(0.2, 0.2, 0.2))
@@ -111,11 +128,40 @@ func _fire_projectile(direction: Vector2) -> void:
 
 
 # accepts damage from weapons, relics, or environmental effects
-func take_damage(amount: float, is_critical: bool = false) -> void:
+func take_damage(amount: float, is_critical: bool = false, attacker: PlayerController = null) -> void:
 	if amount <= 0.0 or not is_alive():
 		return
-	_show_damage_feedback(amount, is_critical)
-	health_component.take_damage(amount)
+	var remaining := amount
+	if armor_component != null:
+		remaining = armor_component.absorb_damage(amount)
+	_show_damage_feedback(remaining, is_critical)
+	health_component.take_damage(remaining)
+	if is_alive() and attacker != null and attacker.relic_controller != null:
+		attacker.relic_controller.on_enemy_hit(self)
+
+
+# applies or refreshes a burn without making its ticks reapply the effect
+func apply_burn(damage_per_second: float, duration: float) -> void:
+	_burn_dps = maxf(_burn_dps, damage_per_second)
+	_burn_remaining = maxf(_burn_remaining, duration)
+
+
+# applies periodic burning damage while the effect lasts
+func _tick_burn(delta: float) -> void:
+	if _burn_remaining <= 0.0 or not is_alive():
+		return
+	_burn_remaining = maxf(0.0, _burn_remaining - delta)
+	_burn_tick_timer -= delta
+	if _burn_tick_timer <= 0.0:
+		take_damage(_burn_dps * 0.5)
+		_burn_tick_timer += 0.5
+	if _burn_remaining <= 0.0:
+		_burn_dps = 0.0
+
+
+# returns reduced stagger strength while the enemy still has armor
+func get_stagger_multiplier() -> float:
+	return armor_component.get_stagger_multiplier() if armor_component != null else 1.0
 
 
 # displays floating damage text and a brief flash for critical hits

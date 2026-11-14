@@ -39,6 +39,6 @@ func _impact() -> void:
 		if enemy != null and enemy.is_alive() and global_position.distance_to(enemy.global_position) <= radius:
 			if player != null:
 				var hit := player.roll_attack_hit(damage)
-				enemy.take_damage(float(hit["damage"]), bool(hit["critical"]))
+				enemy.take_damage(float(hit["damage"]), bool(hit["critical"]), player)
 			else:
 				enemy.take_damage(damage)

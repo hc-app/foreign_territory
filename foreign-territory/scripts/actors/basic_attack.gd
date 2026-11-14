@@ -25,27 +25,31 @@ func _physics_process(delta: float) -> void:
 
 # finds the closest living enemy in the current scene
 func find_nearest_enemy() -> EnemyActor:
-	var nearest: EnemyActor
-	var best_distance := INF
+	var targets := get_nearest_enemies()
+	return targets[0] if not targets.is_empty() else null
+
+
+# returns living enemies sorted from nearest to farthest
+func get_nearest_enemies() -> Array[EnemyActor]:
+	var ordered: Array[EnemyActor] = []
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as EnemyActor
-		if enemy == null or not enemy.is_alive():
-			continue
-		var distance := player.global_position.distance_squared_to(enemy.global_position)
-		if distance < best_distance:
-			best_distance = distance
-			nearest = enemy
-	return nearest
+		if enemy != null and enemy.is_alive():
+			ordered.append(enemy)
+	ordered.sort_custom(func(a: EnemyActor, b: EnemyActor) -> bool:
+		return player.global_position.distance_squared_to(a.global_position) < player.global_position.distance_squared_to(b.global_position)
+	)
+	return ordered
 
 
-# spawns a plasma ball toward the given position with an optional angle offset
-func fire_at(target_position: Vector2, angle_offset: float = 0.0) -> void:
+# spawns a plasma ball toward a chosen enemy without an angle offset
+func fire_at(target_position: Vector2) -> void:
 	var aim := (target_position - player.global_position).normalized()
 	if aim == Vector2.ZERO:
 		aim = Vector2.RIGHT
 	var projectile := CombatProjectile.new()
 	projectile.source = player
-	projectile.direction = aim.rotated(angle_offset)
+	projectile.direction = aim
 	var hit := player.roll_attack_hit(player.attack_damage)
 	projectile.damage = float(hit["damage"])
 	projectile.critical_hit = bool(hit["critical"])

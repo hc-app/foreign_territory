@@ -119,6 +119,7 @@ func take_damage(amount: float) -> void:
 		return
 	health_component.take_damage(amount)
 	_invulnerable_time = 0.45
+	relic_controller.on_damaged()
 	status_changed.emit()
 
 
@@ -144,10 +145,13 @@ func apply_stat_upgrade(stat: String, value: float) -> void:
 	status_changed.emit()
 
 
-# rolls an attack's damage and whether it should show critical hit feedback
-func roll_attack_hit(base_damage: float) -> Dictionary:
-	var critical := randf() < crit_chance
-	return {"damage": base_damage * (1.0 + crit_damage) if critical else base_damage, "critical": critical}
+# rolls critical damage and converts excess special crit chance into extra crit damage
+func roll_attack_hit(base_damage: float, bonus_crit_chance: float = 0.0) -> Dictionary:
+	var chance := crit_chance + bonus_crit_chance
+	var excess := maxf(0.0, chance - 1.0)
+	var critical := randf() < minf(1.0, chance)
+	var multiplier := 1.0 + crit_damage + excess * 1.5
+	return {"damage": base_damage * multiplier if critical else base_damage, "critical": critical}
 
 
 # returns the resulting damage of an attack without critical hit metadata
