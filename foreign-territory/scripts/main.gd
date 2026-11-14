@@ -10,6 +10,8 @@ const LEVEL_SCENE = preload("res://scenes/world_environment/level_template.tscn"
 @export var normal_drop_chance: float = 0.025
 @export var elite_drop_chance: float = 0.18
 @export var relic_reward_share: float = 0.30
+@export_range(0.0, 0.05, 0.0005) var pity_increase_per_kill: float = 0.003
+@export_range(1, 200) var pity_guarantee_kills: int = 25
 
 var menu: MainMenu
 var menu_layer: CanvasLayer
@@ -19,6 +21,7 @@ var progression: RunProgression
 var director: WaveDirector
 var hud: GameHUD
 var ship_parts: int = 0
+var _kills_without_reward: int = 0
 var _reward_queue: Array[String] = []
 var _reward_active: bool = false
 var _active_reward_kind: String = ""
@@ -77,6 +80,7 @@ func _start_run(endless_mode: bool = false) -> void:
 	_run_ended = false
 	_transitioning = false
 	ship_parts = 0
+	_kills_without_reward = 0
 	_reward_active = false
 	_reward_queue.clear()
 
@@ -194,14 +198,25 @@ func _on_enemy_defeated(enemy: EnemyActor, experience: int, rank: String) -> voi
 		call_deferred("_spawn_pickup", drop_kind, enemy.global_position + Vector2(32.0, 0.0))
 
 
-# rolls the overall drop chance before choosing a 70/30 upgrade or relic reward
+# rolls loot with an increasing pity chance and a guaranteed upgrade after a dry streak
 func _roll_enemy_drop(rank: String) -> String:
 	if rank == "boss":
 		return "relic"
-	var base_chance := elite_drop_chance if rank == "elite" else normal_drop_chance
-	if randf() >= GameCatalog.chance_with_luck(base_chance, player.luck):
+	if _kills_without_reward + 1 >= pity_guarantee_kills:
+		_kills_without_reward = 0
+		return "upgrade"
+	if randf() >= _get_drop_chance(rank):
+		_kills_without_reward += 1
 		return ""
+	_kills_without_reward = 0
 	return "relic" if randf() < clampf(relic_reward_share, 0.0, 1.0) else "upgrade"
+
+
+# adds pity to the luck-adjusted drop chance for normal and elite enemies
+func _get_drop_chance(rank: String) -> float:
+	var base_chance := elite_drop_chance if rank == "elite" else normal_drop_chance
+	var chance := GameCatalog.chance_with_luck(base_chance, player.luck)
+	return clampf(chance + float(_kills_without_reward) * pity_increase_per_kill, 0.0, 1.0)
 
 
 # places a reward after physics collision callbacks have finished
