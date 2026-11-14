@@ -10,13 +10,14 @@ var shield_capacity: float = 0.0
 var shield: float = 0.0
 var temporary_shield: float = 0.0
 var shield_regen: float = 0.0
+const LINEAR_REGEN_LIMIT: float = 6.0
 var regen_delay: float = 3.0
 var _time_since_hit: float = 0.0
 var _temporary_timer: float = 0.0
 var _dead: bool = false
 
 
-# regenerates regular shield and expires temporary dash shield
+# regenerates shields with capacity-based scaling and expires temporary shields
 func _process(delta: float) -> void:
 	if _dead:
 		return
@@ -27,7 +28,9 @@ func _process(delta: float) -> void:
 			temporary_shield = 0.0
 			changed.emit()
 	if shield < shield_capacity and _time_since_hit >= regen_delay:
-		shield = minf(shield_capacity, shield + shield_regen * delta)
+		var recharge_time := _time_since_hit - regen_delay
+		var regen_rate := shield_regen * _get_recharge_multiplier(recharge_time)
+		shield = minf(shield_capacity, shield + regen_rate * delta)
 		changed.emit()
 
 
@@ -75,9 +78,26 @@ func increase_max_health(amount: float) -> void:
 # adds regenerating shield capacity from upgrades
 func add_shield_capacity(amount: float) -> void:
 	shield_capacity += maxf(0.0, amount)
-	shield_regen = 0.8 if shield_capacity > 0.0 else 0.0
+	shield_regen = _calculate_shield_regen()
 	shield = minf(shield_capacity, shield + amount)
 	changed.emit()
+
+
+# grows regeneration linearly for small shields and exponentially for large ones
+func _calculate_shield_regen() -> float:
+	if shield_capacity <= 0.0:
+		return 0.0
+	var linear_rate := 1.4 + minf(shield_capacity, LINEAR_REGEN_LIMIT) * 0.3
+	if shield_capacity <= LINEAR_REGEN_LIMIT:
+		return linear_rate
+	return minf(shield_capacity, linear_rate * pow(1.22, (shield_capacity - LINEAR_REGEN_LIMIT) / 2.0))
+
+
+# increases recharge speed over time with a capped linear or exponential ramp
+func _get_recharge_multiplier(recharge_time: float) -> float:
+	if shield_capacity <= LINEAR_REGEN_LIMIT:
+		return minf(2.5, 1.0 + maxf(0.0, recharge_time) * 0.35)
+	return minf(3.0, pow(1.27, maxf(0.0, recharge_time)))
 
 
 # grants a short-lived shield used by dash relics

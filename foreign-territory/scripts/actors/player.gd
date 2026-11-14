@@ -21,7 +21,7 @@ var area_radius: float = 1.0
 var status_potency: float = 1.0
 var dash_speed: float = 680.0
 var dash_duration: float = 0.18
-var dash_cooldown: float = 2.0
+var dash_cooldown: float = 1.5
 var max_dash_charges: int = 1
 var dash_charges: int = 1
 var arena_bounds: Rect2 = Rect2(-610, -325, 1220, 650)
@@ -85,12 +85,22 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 
-# draws the placeholder alien and the damage aura if equipped
+# draws the player, equipped aura, and shield strength around the body
 func _draw() -> void:
 	if relic_controller != null and relic_controller.relic_ids.has("aura"):
 		var radius := (88.0 + 10.0 * float(relic_controller.get_level("aura") - 1)) * area_radius
 		draw_circle(Vector2.ZERO, radius, Color(0.35, 0.95, 0.4, 0.08))
 		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, Color(0.5, 1.0, 0.6, 0.38), 2.0)
+	if health_component != null:
+		var capacity := health_component.shield_capacity
+		if capacity > 0.0 and health_component.shield > 0.0:
+			var ratio := clampf(health_component.shield / capacity, 0.0, 1.0)
+			draw_circle(Vector2.ZERO, 24.0, Color(0.27, 0.65, 1.0, 0.12 * ratio))
+			draw_arc(Vector2.ZERO, 24.0, 0.0, TAU, 48, Color(0.28, 0.48, 0.66, 0.32), 2.0)
+			draw_arc(Vector2.ZERO, 24.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 48, Color(0.37, 0.82, 1.0), 3.5)
+		if health_component.temporary_shield > 0.0:
+			draw_circle(Vector2.ZERO, 29.0, Color(0.44, 1.0, 0.87, 0.06))
+			draw_arc(Vector2.ZERO, 29.0, 0.0, TAU, 48, Color(0.42, 1.0, 0.91), 2.8)
 	var color := Color(0.52, 0.98, 0.67)
 	if _invulnerable_time > 0.0:
 		color = Color(0.67, 0.85, 1.0)
