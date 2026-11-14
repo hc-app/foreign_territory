@@ -24,6 +24,7 @@ var _reward_active: bool = false
 var _active_reward_kind: String = ""
 var _run_ended: bool = false
 var _transitioning: bool = false
+var _endless_mode: bool = false
 var _pending_exit_position: Vector2
 var _pending_exit_direction: String = "right"
 
@@ -65,9 +66,10 @@ func _show_menu() -> void:
 	menu.start_requested.connect(_start_run)
 
 
-# creates a fresh run and connects all gameplay systems together
-func _start_run() -> void:
+# creates a campaign or endless testing run using the same gameplay systems
+func _start_run(endless_mode: bool = false) -> void:
 	get_tree().paused = false
+	_endless_mode = endless_mode
 	if menu_layer != null and is_instance_valid(menu_layer):
 		menu_layer.queue_free()
 		menu_layer = null
@@ -83,15 +85,16 @@ func _start_run() -> void:
 	director = WaveDirector.new()
 	director.rooms_per_floor = maxi(1, rooms_per_floor)
 	director.max_floors = maxi(0, max_floors)
+	director.endless_waves = endless_mode
 	add_child(director)
-	_load_room(0)
+	_load_room(1 if endless_mode else 0)
 	progression.setup(player)
 
 	hud = GameHUD.new()
 	add_child(hud)
 	hud.setup(player, progression, director)
 	hud.reward_chosen.connect(_on_reward_chosen)
-	hud.restart_requested.connect(_start_run)
+	hud.restart_requested.connect(_restart_run)
 	hud.menu_requested.connect(_show_menu)
 	progression.reward_applied.connect(hud.show_message)
 	director.room_started.connect(_on_room_started)
@@ -100,7 +103,13 @@ func _start_run() -> void:
 	director.enemy_defeated.connect(_on_enemy_defeated)
 	director.run_won.connect(_on_run_won)
 	director.start_run()
-	world.call("set_exits_locked", false)
+	if not endless_mode:
+		world.call("set_exits_locked", false)
+
+
+# restarts the selected mode without returning to the main menu
+func _restart_run() -> void:
+	_start_run(_endless_mode)
 
 
 # loads a room beside the previous doorway without resetting the player to center
@@ -177,7 +186,8 @@ func _on_enemy_defeated(enemy: EnemyActor, experience: int, rank: String) -> voi
 		GameData.earn_currency(1)
 	elif rank == "boss":
 		GameData.earn_currency(4)
-		call_deferred("_spawn_pickup", "ship_part", enemy.global_position)
+		if not _endless_mode:
+			call_deferred("_spawn_pickup", "ship_part", enemy.global_position)
 
 	var drop_kind := _roll_enemy_drop(rank)
 	if not drop_kind.is_empty():
@@ -245,29 +255,35 @@ func _on_reward_chosen(entry: Dictionary) -> void:
 	_show_next_reward()
 
 
-# announces the current floor and room when a wave begins
+# announces the current room or endless wave when enemies begin spawning
 func _on_room_started(floor_number: int, room_number: int) -> void:
-	if room_number == 0:
+	if _endless_mode:
+		hud.show_message("Endless wave %d — depth %d" % [director.wave_number, floor_number])
+	elif room_number == 0:
 		hud.show_message("Starting room: press E at the open green doorway")
 	else:
 		hud.show_message("Floor %d, Room %d/%d" % [floor_number, room_number, director.rooms_per_floor])
-	world.call("set_exits_locked", room_number != 0)
+	world.call("set_exits_locked", _endless_mode or room_number != 0)
 
 
-# collects leftover rewards before leaving a cleared room
+# collects leftover rewards and applies room-clear relic effects
 func _on_room_cleared() -> void:
+	player.relic_controller.on_room_cleared()
 	for node in world.get_children():
 		var pickup := node as RewardPickup
 		if pickup != null and pickup.pickup_kind != "ship_part" and not pickup.is_queued_for_deletion():
 			_reward_queue.append(pickup.pickup_kind)
 			pickup.queue_free()
 	_show_next_reward()
-	_unlock_cleared_room()
+	if _endless_mode:
+		hud.show_message("Wave %d cleared! Next wave approaching" % director.wave_number)
+	else:
+		_unlock_cleared_room()
 
 
 # unlocks exits only after the wave and any required ship part are complete
 func _unlock_cleared_room() -> void:
-	if not director.room_is_cleared or _run_ended:
+	if _endless_mode or not director.room_is_cleared or _run_ended:
 		return
 	if director.room_number == director.rooms_per_floor and ship_parts < director.floor_number:
 		hud.show_message("Collect the ship part to unlock the exit")
@@ -282,7 +298,7 @@ func _unlock_cleared_room() -> void:
 
 # responds to doorway interaction only after the current room is complete
 func _on_room_exit_requested(exit_door: RoomExit) -> void:
-	if _run_ended or _transitioning or not director.room_is_cleared:
+	if _endless_mode or _run_ended or _transitioning or not director.room_is_cleared:
 		return
 	_transitioning = true
 	_pending_exit_position = exit_door.global_position

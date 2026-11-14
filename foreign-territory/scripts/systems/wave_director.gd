@@ -10,15 +10,18 @@ signal run_won
 @export_range(1, 20) var rooms_per_floor: int = 3
 @export_range(0, 999) var max_floors: int = 5
 @export var normal_enemies_per_room: int = 6
-@export var enemies_added_per_floor: int = 2
+@export var enemies_added_per_floor: int = 3
 @export var enemies_added_per_room: int = 2
 @export var maximum_enemies_per_room: int = 60
 @export var spawn_interval: float = 0.75
 @export var elite_chance: float = 0.1
 @export var armored_enemy_chance: float = 0.25
+@export var endless_waves: bool = false
+@export var endless_wave_delay: float = 3.0
 
 var floor_number: int = 1
 var room_number: int = 0
+var wave_number: int = 0
 var room_is_cleared: bool = false
 var player: PlayerController
 var world: Node2D
@@ -26,6 +29,8 @@ var _enemies_to_spawn: int = 0
 var _alive_enemies: int = 0
 var _spawn_timer: float = 0.0
 var _running: bool = false
+var _between_waves: bool = false
+var _wave_delay_left: float = 0.0
 
 
 # binds the wave system to the level and current player
@@ -34,9 +39,14 @@ func setup(level_root: Node2D, target: PlayerController) -> void:
 	player = target
 
 
-# starts in a peaceful entry room before the first wave
+# starts a campaign entry room or the first endless testing wave
 func start_run() -> void:
 	floor_number = 1
+	wave_number = 0
+	_between_waves = false
+	if endless_waves:
+		_start_endless_wave()
+		return
 	room_number = 0
 	_running = false
 	room_is_cleared = true
@@ -52,9 +62,14 @@ func begin_room(next_floor: int, next_room: int) -> void:
 	_start_room()
 
 
-# spawns enemies over time and detects when each room is cleared
+# spawns combat waves and handles the endless mode's time between waves
 func _process(delta: float) -> void:
 	if not _running:
+		return
+	if _between_waves:
+		_wave_delay_left -= delta
+		if _wave_delay_left <= 0.0:
+			_start_endless_wave()
 		return
 	if _enemies_to_spawn > 0:
 		_spawn_timer -= delta
@@ -63,28 +78,47 @@ func _process(delta: float) -> void:
 			_enemies_to_spawn -= 1
 			_spawn_timer = spawn_interval
 	elif _alive_enemies == 0:
-		_running = false
 		room_is_cleared = true
+		if endless_waves:
+			_between_waves = true
+			_wave_delay_left = endless_wave_delay
+		else:
+			_running = false
 		room_cleared.emit()
 
 
-# prepares one wave per room and adds a boss to the last room of every floor
+# prepares one wave per room or a recurring wave in endless mode
 func _start_room() -> void:
-	var count := normal_enemies_per_room + (room_number - 1) * enemies_added_per_room
+	var wave_room := room_number
+	if endless_waves:
+		wave_room = ((wave_number - 1) % rooms_per_floor) + 1
+	var count := normal_enemies_per_room + (wave_room - 1) * enemies_added_per_room
 	count += (floor_number - 1) * enemies_added_per_floor
 	_enemies_to_spawn = mini(maximum_enemies_per_room, count)
-	if room_number == rooms_per_floor:
+	if wave_room == rooms_per_floor:
 		_enemies_to_spawn += 1
 	_spawn_timer = 0.4
 	_alive_enemies = 0
 	room_started.emit(floor_number, room_number)
 
 
+# starts another wave without unloading the testing arena
+func _start_endless_wave() -> void:
+	wave_number += 1
+	floor_number = 1 + int(floor(float(wave_number - 1) / float(rooms_per_floor)))
+	room_number = 1
+	_running = true
+	_between_waves = false
+	room_is_cleared = false
+	_start_room()
+
+
 # spawns enemies using room-provided positions instead of a fixed map
 func _spawn_enemy() -> void:
 	var index := _enemies_to_spawn
 	var rank := "normal"
-	if room_number == rooms_per_floor and index == 1:
+	var boss_wave := (wave_number % rooms_per_floor == 0) if endless_waves else (room_number == rooms_per_floor)
+	if boss_wave and index == 1:
 		rank = "boss"
 	elif randf() < elite_chance:
 		rank = "elite"
@@ -111,7 +145,7 @@ func _on_enemy_defeated(enemy: EnemyActor, experience: int, rank: String) -> voi
 
 # advances after an unlocked doorway is used instead of automatically clearing rooms
 func advance_room() -> void:
-	if not room_is_cleared:
+	if endless_waves or not room_is_cleared:
 		return
 	var next_floor := floor_number
 	var next_room := room_number + 1
@@ -127,3 +161,4 @@ func advance_room() -> void:
 # prevents additional spawning and transitions after player death
 func stop_run() -> void:
 	_running = false
+	_between_waves = false

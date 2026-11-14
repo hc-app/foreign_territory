@@ -1,7 +1,7 @@
 extends Control
 class_name MainMenu
 
-signal start_requested
+signal start_requested(endless_mode: bool)
 
 var _shop_open: bool = false
 
@@ -44,7 +44,8 @@ func _render() -> void:
 		_build_shop(layout)
 	else:
 		_add_label(layout, "Alien survival | Top-down roguelite", 17)
-		_add_button(layout, "Start Run", func() -> void: start_requested.emit())
+		_add_button(layout, "Start Campaign", func() -> void: start_requested.emit(false))
+		_add_button(layout, "Endless Waves (Testing)", func() -> void: start_requested.emit(true))
 		_add_button(layout, "Permanent Upgrades", _open_shop)
 		_add_button(layout, "Quit", func() -> void: get_tree().quit())
 		_add_label(layout, "WASD / arrow keys: move   |   Space: dash", 15)

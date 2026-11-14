@@ -15,6 +15,7 @@ var _dash_bar: ProgressBar
 var _wave_status: Label
 var _resource_stats: Label
 var _message: Label
+var _help: Label
 var _overlay: Control
 var _message_time: float = 0.0
 
@@ -62,6 +63,7 @@ func _ready() -> void:
 	help.position = Vector2(20, 665)
 	help.add_theme_font_size_override("font_size", 16)
 	canvas.add_child(help)
+	_help = help
 
 
 # updates player and wave values without coupling other scripts to UI nodes
@@ -79,12 +81,22 @@ func _process(delta: float) -> void:
 		if run_controller != null:
 			part_count = int(run_controller.get("ship_parts"))
 			part_goal = maxi(1, int(run_controller.get("max_floors")))
-		_wave_status.text = "Floor %d  Room %d/%d  Parts %d/%d  Lv %d  XP %d/%d  Dashes %d/%d" % [
-			director.floor_number, director.room_number, director.rooms_per_floor, part_count,
-			part_goal, progression.level, progression.experience, progression.experience_required(),
-			player.dash_charges, player.max_dash_charges
+		if director.endless_waves:
+			_wave_status.text = "Endless wave %d  Depth %d  Lv %d  XP %d/%d  Dashes %d/%d" % [
+				director.wave_number, director.floor_number, progression.level,
+				progression.experience, progression.experience_required(), player.dash_charges,
+				player.max_dash_charges
+			]
+		else:
+			_wave_status.text = "Floor %d  Room %d/%d  Parts %d/%d  Lv %d  XP %d/%d  Dashes %d/%d" % [
+				director.floor_number, director.room_number, director.rooms_per_floor, part_count,
+				part_goal, progression.level, progression.experience, progression.experience_required(),
+				player.dash_charges, player.max_dash_charges
+			]
+		_resource_stats.text = "Relics %d  Meta %d  Dash %.2fs  Area %.0f%%  Status %.0f%%" % [
+			progression.taken_relics.size(), GameData.currency, player.dash_cooldown,
+			player.area_radius * 100.0, player.status_potency * 100.0
 		]
-		_resource_stats.text = "Relics %d  Meta currency %d" % [progression.taken_relics.size(), GameData.currency]
 		_dash_bar.value = player.get_dash_recharge_ratio() * 100.0
 
 	if _message_time > 0.0:
@@ -99,6 +111,8 @@ func setup(target: PlayerController, run_progression: RunProgression, wave_direc
 	progression = run_progression
 	director = wave_director
 	run_controller = wave_director.get_parent() as Node2D
+	if _help != null and wave_director.endless_waves:
+		_help.text = "WASD: move  •  Space: dash  •  Survive repeating waves  •  Collect glowing drops"
 
 
 # displays a short message for leveling, drops, and wave changes
