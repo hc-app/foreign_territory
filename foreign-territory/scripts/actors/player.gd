@@ -144,11 +144,15 @@ func apply_stat_upgrade(stat: String, value: float) -> void:
 	status_changed.emit()
 
 
-# rolls critical damage for a player attack or relic hit
+# rolls an attack's damage and whether it should show critical hit feedback
+func roll_attack_hit(base_damage: float) -> Dictionary:
+	var critical := randf() < crit_chance
+	return {"damage": base_damage * (1.0 + crit_damage) if critical else base_damage, "critical": critical}
+
+
+# returns the resulting damage of an attack without critical hit metadata
 func roll_attack_damage(base_damage: float) -> float:
-	if randf() < crit_chance:
-		return base_damage * (1.0 + crit_damage)
-	return base_damage
+	return float(roll_attack_hit(base_damage)["damage"])
 
 
 # returns progress toward the next recharged dash charge

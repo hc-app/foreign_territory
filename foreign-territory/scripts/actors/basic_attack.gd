@@ -46,6 +46,8 @@ func fire_at(target_position: Vector2, angle_offset: float = 0.0) -> void:
 	var projectile := CombatProjectile.new()
 	projectile.source = player
 	projectile.direction = aim.rotated(angle_offset)
-	projectile.damage = player.roll_attack_damage(player.attack_damage)
+	var hit := player.roll_attack_hit(player.attack_damage)
+	projectile.damage = float(hit["damage"])
+	projectile.critical_hit = bool(hit["critical"])
 	player.get_parent().add_child(projectile)
 	projectile.global_position = player.global_position + projectile.direction * 22.0

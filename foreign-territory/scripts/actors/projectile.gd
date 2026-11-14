@@ -5,6 +5,7 @@ var direction: Vector2 = Vector2.RIGHT
 var speed: float = 470.0
 var damage: float = 1.0
 var hostile: bool = false
+var critical_hit: bool = false
 var source: Node2D
 var lifetime: float = 3.0
 
@@ -46,5 +47,8 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if not hostile and not body.is_in_group("enemies"):
 		return
-	body.take_damage(damage)
+	if hostile:
+		body.take_damage(damage)
+	else:
+		body.take_damage(damage, critical_hit)
 	queue_free()

@@ -12,6 +12,7 @@ var xp_reward: int = 5
 var health_component: HealthComponent
 var player: PlayerController
 var _attack_timer: float = 1.0
+var _crit_flash_time: float = 0.0
 
 
 # configures the enemy type and difficulty before it enters the scene
@@ -54,6 +55,7 @@ func _ready() -> void:
 
 # uses simple placeholder AI until the enemy programmer replaces it
 func _physics_process(delta: float) -> void:
+	_crit_flash_time = maxf(0.0, _crit_flash_time - delta)
 	if player == null or not player.is_alive() or not is_alive():
 		velocity = Vector2.ZERO
 		return
@@ -87,6 +89,8 @@ func _draw() -> void:
 		color = Color(0.97, 0.25, 0.57)
 		radius = 32.0
 	draw_circle(Vector2.ZERO, radius, color)
+	if _crit_flash_time > 0.0:
+		draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 32, Color(1.0, 0.83, 0.25), 4.0)
 	draw_circle(Vector2(0.0, -4.0), 4.0, Color(0.22, 0.1, 0.2))
 	if health_component != null and health_component.health < health_component.max_health:
 		var ratio := health_component.health / health_component.max_health
@@ -107,8 +111,34 @@ func _fire_projectile(direction: Vector2) -> void:
 
 
 # accepts damage from weapons, relics, or environmental effects
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, is_critical: bool = false) -> void:
+	if amount <= 0.0 or not is_alive():
+		return
+	_show_damage_feedback(amount, is_critical)
 	health_component.take_damage(amount)
+
+
+# displays floating damage text and a brief flash for critical hits
+func _show_damage_feedback(amount: float, is_critical: bool) -> void:
+	var label := Label.new()
+	label.text = "CRIT! %.1f" % amount if is_critical else "%.1f" % amount
+	var color := Color(1.0, 0.77, 0.2) if is_critical else Color(0.95, 0.97, 1.0)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.1, 0.08, 0.08))
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_font_size_override("font_size", 26 if is_critical else 17)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 20
+	get_parent().add_child(label)
+	label.global_position = global_position + Vector2(-34.0 if is_critical else -10.0, -52.0)
+	var tween := get_tree().create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position", label.position + Vector2(0.0, -42.0), 0.7)
+	tween.tween_property(label, "modulate:a", 0.0, 0.7)
+	tween.chain().tween_callback(label.queue_free)
+	if is_critical:
+		_crit_flash_time = 0.2
+		queue_redraw()
 
 
 # checks whether the enemy can still be targeted

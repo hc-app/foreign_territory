@@ -3,6 +3,7 @@ class_name MeteorStrike
 
 var radius: float = 78.0
 var damage: float = 8.0
+var player: PlayerController
 var charge_time: float = 0.65
 var _impact_time: float = 0.2
 var _impacted: bool = false
@@ -36,4 +37,8 @@ func _impact() -> void:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as EnemyActor
 		if enemy != null and enemy.is_alive() and global_position.distance_to(enemy.global_position) <= radius:
-			enemy.take_damage(damage)
+			if player != null:
+				var hit := player.roll_attack_hit(damage)
+				enemy.take_damage(float(hit["damage"]), bool(hit["critical"]))
+			else:
+				enemy.take_damage(damage)
