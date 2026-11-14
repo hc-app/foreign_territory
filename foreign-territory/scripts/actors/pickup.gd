@@ -25,11 +25,13 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-# draws different colors and symbols for each reward type
+# draws different colors and symbols for rewards and ship repair parts
 func _draw() -> void:
 	var color := Color(0.3, 0.85, 1.0)
 	if pickup_kind == "relic":
 		color = Color(0.87, 0.44, 1.0)
+	elif pickup_kind == "ship_part":
+		color = Color(1.0, 0.82, 0.22)
 	var center := Vector2(0.0, sin(_age * 3.0) * 3.0)
 	draw_circle(center, 14.0, color)
 	draw_arc(center, 19.0, 0.0, TAU, 30, color.darkened(0.25), 2.0)

@@ -8,10 +8,12 @@ signal menu_requested
 var player: PlayerController
 var progression: RunProgression
 var director: WaveDirector
+var run_controller: Node2D
 var _status: Label
 var _combat_stats: Label
 var _dash_bar: ProgressBar
 var _wave_status: Label
+var _resource_stats: Label
 var _message: Label
 var _overlay: Control
 var _message_time: float = 0.0
@@ -42,6 +44,9 @@ func _ready() -> void:
 	_wave_status = Label.new()
 	_wave_status.add_theme_font_size_override("font_size", 18)
 	left.add_child(_wave_status)
+	_resource_stats = Label.new()
+	_resource_stats.add_theme_font_size_override("font_size", 16)
+	left.add_child(_resource_stats)
 	_dash_bar = ProgressBar.new()
 	_dash_bar.custom_minimum_size = Vector2(245.0, 18.0)
 	_dash_bar.max_value = 100.0
@@ -53,7 +58,7 @@ func _ready() -> void:
 	left.add_child(_message)
 
 	var help := Label.new()
-	help.text = "WASD / Arrows: move   •   Space: dash   •   Collect glowing drops"
+	help.text = "WASD: move  •  Space: dash  •  E: use green doorway  •  Collect glowing drops"
 	help.position = Vector2(20, 665)
 	help.add_theme_font_size_override("font_size", 16)
 	canvas.add_child(help)
@@ -69,11 +74,17 @@ func _process(delta: float) -> void:
 		_combat_stats.text = "Crit %.1f%% (+%.0f%% damage)  Luck %.1f" % [
 			player.crit_chance * 100.0, player.crit_damage * 100.0, player.luck
 		]
-		_wave_status.text = "Floor %d  Room %d/%d  Level %d  XP %d/%d  Relics %d  Dashes %d/%d  Meta %d" % [
-			director.floor_number, director.room_number, director.rooms_per_floor, progression.level,
-			progression.experience, progression.experience_required(), progression.taken_relics.size(),
-			player.dash_charges, player.max_dash_charges, GameData.currency
+		var part_count := 0
+		var part_goal := 5
+		if run_controller != null:
+			part_count = int(run_controller.get("ship_parts"))
+			part_goal = maxi(1, int(run_controller.get("max_floors")))
+		_wave_status.text = "Floor %d  Room %d/%d  Parts %d/%d  Lv %d  XP %d/%d  Dashes %d/%d" % [
+			director.floor_number, director.room_number, director.rooms_per_floor, part_count,
+			part_goal, progression.level, progression.experience, progression.experience_required(),
+			player.dash_charges, player.max_dash_charges
 		]
+		_resource_stats.text = "Relics %d  Meta currency %d" % [progression.taken_relics.size(), GameData.currency]
 		_dash_bar.value = player.get_dash_recharge_ratio() * 100.0
 
 	if _message_time > 0.0:
@@ -87,6 +98,7 @@ func setup(target: PlayerController, run_progression: RunProgression, wave_direc
 	player = target
 	progression = run_progression
 	director = wave_director
+	run_controller = wave_director.get_parent() as Node2D
 
 
 # displays a short message for leveling, drops, and wave changes
