@@ -10,10 +10,11 @@ signal run_won
 @export_range(1, 20) var rooms_per_floor: int = 3
 @export_range(0, 999) var max_floors: int = 5
 @export var normal_enemies_per_room: int = 6
-@export var enemies_added_per_floor: int = 3
-@export var enemies_added_per_room: int = 2
-@export var maximum_enemies_per_room: int = 60
-@export var spawn_interval: float = 0.75
+@export var enemies_added_per_floor: int = 8
+@export var enemies_added_per_room: int = 3
+@export var maximum_enemies_per_room: int = 120
+@export var spawn_interval: float = 0.55
+@export_range(1, 32) var maximum_spawn_batch: int = 8
 @export var elite_chance: float = 0.1
 @export var armored_enemy_chance: float = 0.25
 @export var endless_waves: bool = false
@@ -28,6 +29,8 @@ var world: Node2D
 var _enemies_to_spawn: int = 0
 var _alive_enemies: int = 0
 var _spawn_timer: float = 0.0
+var _wave_room: int = 1
+var _difficulty_stage: int = 0
 var _running: bool = false
 var _between_waves: bool = false
 var _wave_delay_left: float = 0.0
@@ -74,9 +77,10 @@ func _process(delta: float) -> void:
 	if _enemies_to_spawn > 0:
 		_spawn_timer -= delta
 		if _spawn_timer <= 0.0:
-			_spawn_enemy()
-			_enemies_to_spawn -= 1
-			_spawn_timer = spawn_interval
+			for _index in range(mini(get_spawn_batch_size(), _enemies_to_spawn)):
+				_spawn_enemy()
+				_enemies_to_spawn -= 1
+			_spawn_timer = get_spawn_delay()
 	elif _alive_enemies == 0:
 		room_is_cleared = true
 		if endless_waves:
@@ -87,11 +91,23 @@ func _process(delta: float) -> void:
 		room_cleared.emit()
 
 
+# returns how many enemies are spawned together at the current depth
+func get_spawn_batch_size() -> int:
+	return mini(maximum_spawn_batch, 1 + int(floor(float(_difficulty_stage) / 2.0)))
+
+
+# decreases the time between spawn batches as rooms get harder
+func get_spawn_delay() -> float:
+	return maxf(0.14, spawn_interval * pow(0.90, float(_difficulty_stage)))
+
+
 # prepares one wave per room or a recurring wave in endless mode
 func _start_room() -> void:
 	var wave_room := room_number
 	if endless_waves:
 		wave_room = ((wave_number - 1) % rooms_per_floor) + 1
+	_wave_room = wave_room
+	_difficulty_stage = (floor_number - 1) * rooms_per_floor + wave_room - 1
 	var count := normal_enemies_per_room + (wave_room - 1) * enemies_added_per_room
 	count += (floor_number - 1) * enemies_added_per_floor
 	_enemies_to_spawn = mini(maximum_enemies_per_room, count)
@@ -117,7 +133,7 @@ func _start_endless_wave() -> void:
 func _spawn_enemy() -> void:
 	var index := _enemies_to_spawn
 	var rank := "normal"
-	var boss_wave := (wave_number % rooms_per_floor == 0) if endless_waves else (room_number == rooms_per_floor)
+	var boss_wave := _wave_room == rooms_per_floor
 	if boss_wave and index == 1:
 		rank = "boss"
 	elif randf() < elite_chance:
@@ -125,7 +141,7 @@ func _spawn_enemy() -> void:
 
 	var kind := "ranged" if randf() < 0.35 else "melee"
 	var enemy := EnemyActor.new()
-	enemy.configure(kind, rank, floor_number, player)
+	enemy.configure(kind, rank, floor_number, player, _wave_room)
 	enemy.starts_armored = rank == "boss" or (rank == "elite" and randf() < 0.7) or randf() < armored_enemy_chance
 	var spawn_position := player.global_position + Vector2.RIGHT.rotated(randf_range(0.0, TAU)) * 300.0
 	if world.has_method("get_enemy_spawn_position"):
