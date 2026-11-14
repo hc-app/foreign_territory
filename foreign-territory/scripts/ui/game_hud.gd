@@ -10,9 +10,9 @@ var progression: RunProgression
 var director: WaveDirector
 var _status: Label
 var _combat_stats: Label
+var _dash_bar: ProgressBar
 var _wave_status: Label
 var _message: Label
-var _dash_bar: ProgressBar
 var _overlay: Control
 var _message_time: float = 0.0
 
@@ -69,12 +69,13 @@ func _process(delta: float) -> void:
 		_combat_stats.text = "Crit %.1f%% (+%.0f%% damage)  Luck %.1f" % [
 			player.crit_chance * 100.0, player.crit_damage * 100.0, player.luck
 		]
-		_wave_status.text = "Room %d/%d  Level %d  XP %d/%d  Relics %d  Dashes %d/%d  Meta %d" % [
-			director.room_number, director.total_rooms, progression.level, progression.experience,
-			progression.experience_required(), progression.taken_relics.size(),
+		_wave_status.text = "Floor %d  Room %d/%d  Level %d  XP %d/%d  Relics %d  Dashes %d/%d  Meta %d" % [
+			director.floor_number, director.room_number, director.rooms_per_floor, progression.level,
+			progression.experience, progression.experience_required(), progression.taken_relics.size(),
 			player.dash_charges, player.max_dash_charges, GameData.currency
 		]
 		_dash_bar.value = player.get_dash_recharge_ratio() * 100.0
+
 	if _message_time > 0.0:
 		_message_time -= delta
 		if _message_time <= 0.0:
@@ -105,7 +106,9 @@ func show_reward(kind: String, options: Array[Dictionary]) -> void:
 		var rarity_entry := GameCatalog.find_entry(GameCatalog.RARITIES, rarity)
 		var rarity_name := str(rarity_entry.get("name", "Common"))
 		button.text = "%s — %s\n%s" % [rarity_name, entry["name"], entry["description"]]
-		button.add_theme_color_override("font_color", GameCatalog.rarity_color(rarity))
+		var color := GameCatalog.rarity_color(rarity)
+		for theme_color in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+			button.add_theme_color_override(theme_color, color)
 		button.custom_minimum_size.y = 64
 		button.pressed.connect(_select_reward.bind(entry))
 		layout.add_child(button)
