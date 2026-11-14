@@ -18,6 +18,9 @@ var _burn_tick_timer: float = 0.5
 var player: PlayerController
 var _attack_timer: float = 1.0
 var _crit_flash_time: float = 0.0
+var _pull_target: Vector2 = Vector2.ZERO
+var _pull_strength: float = 0.0
+var _pull_time: float = 0.0
 
 
 # configures the enemy type and difficulty before it enters the scene
@@ -38,14 +41,19 @@ func _ready() -> void:
 	circle.radius = 14.0 if tier == "normal" else (20.0 if tier == "elite" else 32.0)
 	collision.shape = circle
 	add_child(collision)
-	var start_health := 10.0 + 4.0 * float(floor_number - 1)
+	var depth := float(maxi(0, floor_number - 1))
+	var health_scale := pow(1.3, depth)
+	var speed_scale := minf(1.8, 1.0 + depth * 0.08)
+	var damage_scale := 1.0 + depth * 0.22
+	var start_health := 10.0 * health_scale
+	contact_damage = 1.0 * damage_scale
 	if tier == "elite":
 		start_health *= 3.0
 	elif tier == "boss":
 		start_health *= 9.0
-	move_speed = 110.0 if enemy_kind == "melee" else 85.0
+	move_speed = (110.0 if enemy_kind == "melee" else 85.0) * speed_scale
 	if tier == "boss":
-		move_speed = 70.0
+		move_speed = 70.0 * speed_scale
 	xp_reward = 5 + floor_number * 2
 	if tier == "elite":
 		xp_reward *= 4
@@ -71,10 +79,13 @@ func _physics_process(delta: float) -> void:
 	if player == null or not player.is_alive() or not is_alive():
 		velocity = Vector2.ZERO
 		return
+	_pull_time = maxf(0.0, _pull_time - delta)
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
 	var desired_range := 215.0 if enemy_kind == "ranged" or tier == "boss" else 20.0
 	velocity = to_player.normalized() * move_speed if distance > desired_range else Vector2.ZERO
+	if _pull_time > 0.0:
+		velocity += (_pull_target - global_position).normalized() * _pull_strength
 	move_and_slide()
 	_attack_timer -= delta
 	if _attack_timer <= 0.0:
@@ -122,21 +133,24 @@ func _fire_projectile(direction: Vector2) -> void:
 	projectile.hostile = true
 	projectile.direction = direction
 	projectile.speed = 255.0
-	projectile.damage = 1.0 if tier == "normal" else 2.0
+	projectile.damage = contact_damage * (1.0 if tier == "normal" else 2.0)
 	get_parent().add_child(projectile)
 	projectile.global_position = global_position + direction * 24.0
 
 
-# accepts damage from weapons, relics, or environmental effects
-func take_damage(amount: float, is_critical: bool = false, attacker: PlayerController = null) -> void:
+# applies damage, armor mitigation, and optional player relic effects
+func take_damage(amount: float, is_critical: bool = false, attacker: PlayerController = null, trigger_relics: bool = true) -> void:
 	if amount <= 0.0 or not is_alive():
 		return
 	var remaining := amount
 	if armor_component != null:
-		remaining = armor_component.absorb_damage(amount)
+		var armor_multiplier := 1.0
+		if attacker != null and attacker.relic_controller != null:
+			armor_multiplier = attacker.relic_controller.get_armor_damage_multiplier()
+		remaining = armor_component.absorb_damage(amount, armor_multiplier)
 	_show_damage_feedback(remaining, is_critical)
 	health_component.take_damage(remaining)
-	if is_alive() and attacker != null and attacker.relic_controller != null:
+	if trigger_relics and attacker != null and attacker.relic_controller != null:
 		attacker.relic_controller.on_enemy_hit(self)
 
 
@@ -157,6 +171,13 @@ func _tick_burn(delta: float) -> void:
 		_burn_tick_timer += 0.5
 	if _burn_remaining <= 0.0:
 		_burn_dps = 0.0
+
+
+# applies a temporary pull toward a gravity well's position
+func apply_gravity_pull(target: Vector2, strength: float, duration: float) -> void:
+	_pull_target = target
+	_pull_strength = strength * get_stagger_multiplier()
+	_pull_time = maxf(_pull_time, duration)
 
 
 # returns reduced stagger strength while the enemy still has armor
