@@ -2,16 +2,23 @@ extends CanvasLayer
 class_name GameHUD
 
 signal reward_chosen(entry: Dictionary)
+signal pause_requested
 signal restart_requested
 signal menu_requested
 
 var player: PlayerController
 var progression: RunProgression
 var director: WaveDirector
+var run_controller: Node2D
 var _status: Label
+var _combat_stats: Label
+var _dash_bar: ProgressBar
 var _wave_status: Label
+var _resource_stats: Label
 var _message: Label
+var _help: Label
 var _overlay: Control
+var pause_menu_open: bool = false
 var _message_time: float = 0.0
 
 
@@ -34,35 +41,73 @@ func _ready() -> void:
 	_status = Label.new()
 	_status.add_theme_font_size_override("font_size", 19)
 	left.add_child(_status)
+	_combat_stats = Label.new()
+	_combat_stats.add_theme_font_size_override("font_size", 17)
+	left.add_child(_combat_stats)
 	_wave_status = Label.new()
 	_wave_status.add_theme_font_size_override("font_size", 18)
 	left.add_child(_wave_status)
+	_resource_stats = Label.new()
+	_resource_stats.add_theme_font_size_override("font_size", 16)
+	left.add_child(_resource_stats)
+	_dash_bar = ProgressBar.new()
+	_dash_bar.custom_minimum_size = Vector2(245.0, 18.0)
+	_dash_bar.max_value = 100.0
+	_dash_bar.show_percentage = false
+	left.add_child(_dash_bar)
 	_message = Label.new()
 	_message.add_theme_font_size_override("font_size", 18)
 	_message.modulate = Color(1.0, 0.92, 0.62)
 	left.add_child(_message)
 
 	var help := Label.new()
-	help.text = "WASD / Arrows: move   •   Space: dash   •   Collect glowing drops"
+	help.text = "WASD / Arrows: move  •  Space: dash  •  E: door  •  Esc: pause"
 	help.position = Vector2(20, 665)
 	help.add_theme_font_size_override("font_size", 16)
 	canvas.add_child(help)
+	_help = help
+
+
+# opens or closes the pause menu only when no other overlay is active
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") and (pause_menu_open or _overlay == null):
+		pause_requested.emit()
+		get_viewport().set_input_as_handled()
 
 
 # updates player and wave values without coupling other scripts to UI nodes
 func _process(delta: float) -> void:
 	if player != null and progression != null and director != null and is_instance_valid(player):
 		var health := player.health_component
-		_status.text = "HP %.1f/%.1f  Shield %.1f  Damage %.1f  Dashes %d/%d" % [
-			health.health, health.max_health, health.total_shield(), player.attack_damage,
-			player.dash_charges, player.max_dash_charges
+		_status.text = "HP %.1f/%.1f  Shield %.1f  Damage %.1f" % [
+			health.health, health.max_health, health.total_shield(), player.attack_damage
 		]
-		_wave_status.text = "Floor %d/%d  Wave %d/%d  Level %d  XP %d/%d  Relics %d/%d  Meta %d" % [
-			director.floor_number, director.total_floors, director.wave_number,
-			director.waves_per_floor, progression.level, progression.experience,
-			progression.experience_required(), progression.taken_relics.size(),
-			progression.relic_slots, GameData.currency
+		_combat_stats.text = "Crit %.1f%% (+%.0f%% damage)  Luck %.1f" % [
+			player.crit_chance * 100.0, player.crit_damage * 100.0, player.luck
 		]
+		var part_count := 0
+		var part_goal := 5
+		if run_controller != null:
+			part_count = int(run_controller.get("ship_parts"))
+			part_goal = maxi(1, int(run_controller.get("max_floors")))
+		if director.endless_waves:
+			_wave_status.text = "Endless wave %d  Depth %d  Lv %d  XP %d/%d  Dashes %d/%d" % [
+				director.wave_number, director.floor_number, progression.level,
+				progression.experience, progression.experience_required(), player.dash_charges,
+				player.max_dash_charges
+			]
+		else:
+			_wave_status.text = "Floor %d  Room %d/%d  Parts %d/%d  Lv %d  XP %d/%d  Dashes %d/%d" % [
+				director.floor_number, director.room_number, director.rooms_per_floor, part_count,
+				part_goal, progression.level, progression.experience, progression.experience_required(),
+				player.dash_charges, player.max_dash_charges
+			]
+		_resource_stats.text = "Relics %d  Meta %d  Dash %.2fs  Area %.0f%%  Status %.0f%%" % [
+			progression.taken_relics.size(), GameData.currency, player.dash_cooldown,
+			player.area_radius * 100.0, player.status_potency * 100.0
+		]
+		_dash_bar.value = player.get_dash_recharge_ratio() * 100.0
+
 	if _message_time > 0.0:
 		_message_time -= delta
 		if _message_time <= 0.0:
@@ -74,6 +119,9 @@ func setup(target: PlayerController, run_progression: RunProgression, wave_direc
 	player = target
 	progression = run_progression
 	director = wave_director
+	run_controller = wave_director.get_parent() as Node2D
+	if _help != null and wave_director.endless_waves:
+		_help.text = "WASD / Arrows: move  •  Space: dash  •  Esc: pause  •  Survive waves"
 
 
 # displays a short message for leveling, drops, and wave changes
@@ -89,10 +137,36 @@ func show_reward(kind: String, options: Array[Dictionary]) -> void:
 	_add_overlay_label(layout, "CHOOSE A %s" % kind.to_upper(), 25)
 	for entry in options:
 		var button := Button.new()
-		button.text = "%s\n%s" % [entry["name"], entry["description"]]
+		var rarity := str(entry.get("rarity", "common"))
+		var rarity_entry := GameCatalog.find_entry(GameCatalog.RARITIES, rarity)
+		var rarity_name := str(rarity_entry.get("name", "Common"))
+		button.text = "%s — %s\n%s" % [rarity_name, entry["name"], entry["description"]]
+		var color := GameCatalog.rarity_color(rarity)
+		for theme_color in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+			button.add_theme_color_override(theme_color, color)
 		button.custom_minimum_size.y = 64
 		button.pressed.connect(_select_reward.bind(entry))
 		layout.add_child(button)
+
+
+# pauses gameplay and presents resume, options, and menu controls
+func show_pause_menu() -> void:
+	_create_overlay()
+	pause_menu_open = true
+	var layout := _make_overlay_panel()
+	_add_overlay_label(layout, "PAUSED", 28)
+	var resume := Button.new()
+	resume.text = "Resume"
+	resume.pressed.connect(func() -> void: pause_requested.emit())
+	layout.add_child(resume)
+	var options := Button.new()
+	options.text = "Options (Coming Soon)"
+	options.disabled = true
+	layout.add_child(options)
+	var menu := Button.new()
+	menu.text = "Return to Main Menu"
+	menu.pressed.connect(func() -> void: menu_requested.emit())
+	layout.add_child(menu)
 
 
 # shows win or loss controls when the current run ends
@@ -111,11 +185,12 @@ func show_run_end(won: bool) -> void:
 	layout.add_child(menu)
 
 
-# clears the active selection or end-of-run overlay
+# clears the active reward, pause, or end-of-run overlay
 func hide_overlay() -> void:
 	if _overlay != null and is_instance_valid(_overlay):
 		_overlay.queue_free()
 	_overlay = null
+	pause_menu_open = false
 
 
 # adds a darkened background that blocks gameplay clicks

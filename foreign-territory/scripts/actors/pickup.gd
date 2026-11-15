@@ -1,10 +1,9 @@
 extends Area2D
 class_name RewardPickup
 
-signal collected(pickup_kind: String, amount: int)
+signal collected(pickup_kind: String)
 
 var pickup_kind: String = "upgrade"
-var amount: int = 1
 var _age: float = 0.0
 
 
@@ -26,19 +25,33 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-# draws different colors and symbols for each reward type
+# collects pickups at the extended radius of the scrap collector relic
+func _physics_process(_delta: float) -> void:
+	if is_queued_for_deletion():
+		return
+	for node in get_tree().get_nodes_in_group("player"):
+		var target := node as PlayerController
+		if target == null or not target.is_alive():
+			continue
+		if target.global_position.distance_to(global_position) <= target.relic_controller.get_pickup_radius():
+			_on_body_entered(target)
+			break
+
+
+# draws different colors and symbols for rewards and ship repair parts
 func _draw() -> void:
 	var color := Color(0.3, 0.85, 1.0)
 	if pickup_kind == "relic":
 		color = Color(0.87, 0.44, 1.0)
-	elif pickup_kind == "currency":
-		color = Color(1.0, 0.9, 0.33)
-	draw_circle(Vector2(0, sin(_age * 3.0) * 3.0), 14.0, color)
-	draw_arc(Vector2.ZERO, 19.0, 0.0, TAU, 30, color.darkened(0.25), 2.0)
+	elif pickup_kind == "ship_part":
+		color = Color(1.0, 0.82, 0.22)
+	var center := Vector2(0.0, sin(_age * 3.0) * 3.0)
+	draw_circle(center, 14.0, color)
+	draw_arc(center, 19.0, 0.0, TAU, 30, color.darkened(0.25), 2.0)
 
 
 # sends the collected reward to the main gameplay controller
 func _on_body_entered(body: Node2D) -> void:
-	if body.is_in_group("player"):
-		collected.emit(pickup_kind, amount)
+	if body.is_in_group("player") and not is_queued_for_deletion():
+		collected.emit(pickup_kind)
 		queue_free()

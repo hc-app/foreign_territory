@@ -5,8 +5,11 @@ var direction: Vector2 = Vector2.RIGHT
 var speed: float = 470.0
 var damage: float = 1.0
 var hostile: bool = false
+var critical_hit: bool = false
 var source: Node2D
 var lifetime: float = 3.0
+var max_hits: int = 1
+var _hit_targets: Array[int] = []
 
 
 # creates the projectile collision area and hit callback
@@ -34,6 +37,8 @@ func _physics_process(delta: float) -> void:
 # draws a placeholder projectile without requiring an imported sprite
 func _draw() -> void:
 	var color := Color(1.0, 0.36, 0.26) if hostile else Color(0.42, 0.96, 1.0)
+	if max_hits > 1:
+		color = Color(1.0, 0.77, 0.35)
 	draw_circle(Vector2.ZERO, 7.0, color)
 	draw_circle(Vector2.ZERO, 3.0, Color.WHITE)
 
@@ -46,5 +51,12 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 	if not hostile and not body.is_in_group("enemies"):
 		return
-	body.take_damage(damage)
-	queue_free()
+	if _hit_targets.has(body.get_instance_id()):
+		return
+	_hit_targets.append(body.get_instance_id())
+	if hostile:
+		body.take_damage(damage)
+	else:
+		body.take_damage(damage, critical_hit, source as PlayerController)
+	if _hit_targets.size() >= max_hits:
+		queue_free()

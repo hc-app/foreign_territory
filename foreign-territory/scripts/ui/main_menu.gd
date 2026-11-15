@@ -1,7 +1,7 @@
 extends Control
 class_name MainMenu
 
-signal start_requested
+signal start_requested(endless_mode: bool)
 
 var _shop_open: bool = false
 
@@ -44,7 +44,8 @@ func _render() -> void:
 		_build_shop(layout)
 	else:
 		_add_label(layout, "Alien survival | Top-down roguelite", 17)
-		_add_button(layout, "Start Run", func() -> void: start_requested.emit())
+		_add_button(layout, "Start Campaign", func() -> void: start_requested.emit(false))
+		_add_button(layout, "Endless Waves (Testing)", func() -> void: start_requested.emit(true))
 		_add_button(layout, "Permanent Upgrades", _open_shop)
 		_add_button(layout, "Quit", func() -> void: get_tree().quit())
 		_add_label(layout, "WASD / arrow keys: move   |   Space: dash", 15)
@@ -61,6 +62,7 @@ func _build_shop(layout: VBoxContainer) -> void:
 		var button_text := "MAXED" if current_level >= max_level else "Buy for %d currency" % GameData.get_cost(entry)
 		var button := _add_button(layout, button_text, _buy_upgrade.bind(entry["id"]))
 		button.disabled = current_level >= max_level or GameData.currency < GameData.get_cost(entry)
+	_add_button(layout, "Reset Save Data", _confirm_reset)
 	_add_button(layout, "Back", _close_shop)
 
 
@@ -74,6 +76,19 @@ func _open_shop() -> void:
 func _close_shop() -> void:
 	_shop_open = false
 	_render()
+
+
+# requests confirmation before resetting permanent progression
+func _confirm_reset() -> void:
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "Reset Saved Progress"
+	dialog.dialog_text = "Delete all meta currency and permanent upgrades? This cannot be undone."
+	dialog.ok_button_text = "Reset Progress"
+	add_child(dialog)
+	dialog.confirmed.connect(GameData.reset_progress)
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	dialog.popup_centered()
 
 
 # purchases a permanent upgrade and refreshes the shop
